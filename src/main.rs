@@ -1,21 +1,23 @@
-const TEST_BINARY: &str = "../testapp/target/wasm32-unknown-unknown/debug/sysrs_8.wasm";
-
 #[macro_use]
 extern crate lazy_static;
 extern crate wasmtime;
 extern crate sdl2;
 
 macro_rules! func_wrap {
-    ($store:expr, $func:expr) => {
-        Func::wrap(&$store, $func).into()
+    ($wasm_runtime:expr, $func:expr) => {
+        Func::wrap(&$wasm_runtime.store.as_ref().unwrap(), $func).into()
     };
 }
 
 mod fps_counter;
 mod palette;
+mod runtime;
+mod wasm_runtime;
 
 use crate::fps_counter::FpsCounter;
 use crate::palette::ColorPallete;
+use crate::wasm_runtime::WasmRuntime;
+use crate::runtime::*;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::Color;
@@ -27,6 +29,9 @@ use wasmtime::*;
 
 const WIDTH: i32 = 256;
 const HEIGHT: i32 = 256;
+const RUNTIME: Runtimes = Runtimes::Wasm;
+const TARGET_FPS: f32 = 30.0;
+const FRAME_LEN_MS: u32 = ((1.0 / TARGET_FPS) * 1000.0) as u32; 
 
 #[derive(Copy, Clone, Debug)]
 pub struct TerminalLocation (pub i32, pub i32);
@@ -85,7 +90,16 @@ fn rectfill(x0: i32, y0: i32, x1: i32, y1: i32, color: i32) {
 
 
 fn main() {
-    let mut API: HashMap<String, Func> = HashMap::new();
+    if std::env::args().len() == 1 {
+        println!("Usage: {} <Binary>", std::env::args().next().unwrap());
+        std::process::exit(1);
+    }
+
+    let mut path = "".to_owned();
+    for x in std::env::args() {
+        path = x;
+    }
+
     // Setup SDL
     let sdl_ctx = sdl2::init().unwrap();
     let window = sdl_ctx.video().unwrap().window("WARS-8", WIDTH as u32, HEIGHT as u32).position_centered().build().unwrap();
@@ -93,25 +107,20 @@ fn main() {
     let texture_creator = canvas.texture_creator();
     let mut texture = texture_creator.create_texture_streaming(PixelFormatEnum::RGBX8888, WIDTH as u32, HEIGHT as u32).unwrap();
 
-    // Setup WASMTime
-    let engine = Engine::new(Config::new().interruptable(true));
-    let store = Store::new(&engine);
-    let _interrupt_handle = store.interrupt_handle().unwrap();
-    let module = Module::from_file(&engine, TEST_BINARY).unwrap();
+    let binary_res = std::fs::read(path);
+    if let Err(why) = binary_res {
+        panic!("Failed to read binary! Reason: {}", why);
+    }
 
-    API.insert("pset".to_owned(), func_wrap!(store, pset));
-    API.insert("pget".to_owned(), func_wrap!(store, pget));
-    API.insert("rect".to_owned(), func_wrap!(store, rect));
-    API.insert("rectfill".to_owned(), func_wrap!(store, rectfill));
-
+    let mut runtime = WasmRuntime::new(&binary_res.unwrap()[..]);
     let mut import_vec: Vec<Extern> = Vec::new();
     let mut missing_import_vec: Vec<String> = Vec::new();
-    for import in module.imports() {
+    for import in runtime.module.as_ref().unwrap().imports() {
         match import.name() {
-            "pset" => import_vec.push(func_wrap!(store, pset)),
-            "pget" => import_vec.push(func_wrap!(store, pget)),
-            "rect" => import_vec.push(func_wrap!(store, rect)),
-            "rectfill" => import_vec.push(func_wrap!(store, rectfill)),
+            "pset" => import_vec.push(func_wrap!(runtime, pset)),
+            "pget" => import_vec.push(func_wrap!(runtime, pget)),
+            "rect" => import_vec.push(func_wrap!(runtime, rect)),
+            "rectfill" => import_vec.push(func_wrap!(runtime, rectfill)),
             _ => missing_import_vec.push(import.name().to_owned()),
         }
         println!("Attempting to import {}", import.name());
@@ -121,19 +130,12 @@ fn main() {
         panic!(format!("Missing {} imports: {:?}", missing_import_vec.len(), missing_import_vec));
     }
 
-    let instance = Instance::new(&store, &module, &import_vec[..]).unwrap();
-    let init_fn = instance.get_func("_init").expect("`_init` was not an exported function").get0::<()>().unwrap();
-    let update_fn = instance.get_func("_update").expect("`_update` was not an exported function").get0::<()>().unwrap();
-    let draw_fn = instance.get_func("_draw").expect("`_draw` was not an exported function").get0::<()>().unwrap();
+    runtime.update_api(&import_vec[..]);
 
-    init_fn().unwrap();
-
-    const TARGET_FPS: f32 = 30.0;
-    const FRAME_LEN_MS: u32 = ((1.0 / TARGET_FPS) * 1000.0) as u32; 
     let mut target_ms = sdl_ctx.timer().unwrap().ticks() + FRAME_LEN_MS;
-
     let mut fps_counter = FpsCounter::new(sdl_ctx.timer().unwrap().ticks());
-    
+
+    runtime.init();
     'sdlloop: loop {
         for event in sdl_ctx.event_pump().unwrap().poll_iter() {
             match event {
@@ -145,8 +147,8 @@ fn main() {
             }
         }
 
-        update_fn().unwrap();
-        draw_fn().unwrap();
+        runtime.update();
+        runtime.draw();
 
         texture.with_lock(None, |buffer: &mut [u8], _pitch: usize| {
             let framebuffer = PXBUF_MUTEX.lock().unwrap();
