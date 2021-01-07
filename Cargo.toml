@@ -11,3 +11,6 @@ license = "MIT"
 wasmtime = "0.21.0"
 sdl2 = "0.34.3"
 lazy_static = "1.4.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+directories = "3.0.1"
