@@ -13,19 +13,18 @@ macro_rules! func_wrap {
 }
 
 mod config;
-mod fps_counter;
 mod palette;
 mod runtime;
 mod utils;
 mod wasm_runtime;
 
 use crate::config::Config;
-use crate::fps_counter::FpsCounter;
 use crate::palette::ColorPallete;
 use crate::runtime::*;
 use crate::utils::*;
 use crate::wasm_runtime::{WasmCallerWrapper, WasmRuntime};
 use font8x8::unicode::BASIC_UNICODE;
+use std::collections::HashSet;
 use sdl2::event::Event;
 use sdl2::keyboard::Scancode;
 use sdl2::pixels::Color;
@@ -85,8 +84,10 @@ impl KeyState {
 lazy_static! {
     static ref PXBUF_MUTEX: Mutex<[ColorPallete; (WIDTH * HEIGHT) as usize]> =
         Mutex::new([ColorPallete::Black; (WIDTH * HEIGHT) as usize]);
-    static ref KEYSTATE_FRAME: Mutex<[KeyState; 2]> = Mutex::new([KeyState::new(); 2]);
-    static ref KEYSTATE_HELD: Mutex<[KeyState; 2]> = Mutex::new([KeyState::new(); 2]);
+    static ref KEYSTATE_FRAME: Mutex<HashSet<Scancode>> = Mutex::new(HashSet::new());
+    static ref KEYSTATE_FRAME_FIFO: Mutex<Vec<Scancode>> = Mutex::new(Vec::new());
+    static ref KEYSTATE_HELD: Mutex<HashSet<Scancode>> = Mutex::new(HashSet::new());
+    static ref CONFIG: Mutex<Config> = Mutex::new(Config::get_config_or_create());
 }
 
 fn pset(x: i32, y: i32, color: i32) {
@@ -135,23 +136,46 @@ fn cls(color: i32) {
     rectfill(0, 0, WIDTH - 1, HEIGHT - 1, color);
 }
 
+fn key() -> i32 {
+    let mut keystate_fifo = KEYSTATE_FRAME_FIFO.lock().unwrap();
+    if keystate_fifo.len() > 0 {
+        keystate_fifo.remove(0) as i32
+    } else {
+        0
+    }
+}
+
 fn btn(i: i32, p: i32) -> i32 {
     let keystate_held = KEYSTATE_HELD.lock().unwrap();
     if p != 1 && p != 2 {
         panic!("Invalid player number {}", p);
     }
-    let idx = (p - 1) as usize;
-    let val = match i {
-        0 => keystate_held[idx].left,
-        1 => keystate_held[idx].right,
-        2 => keystate_held[idx].up,
-        3 => keystate_held[idx].down,
-        4 => keystate_held[idx].o,
-        5 => keystate_held[idx].x,
-        _ => panic!("Invalid keycode {}", i),
-    };
 
-    val as i32
+    let config = CONFIG.lock().unwrap();
+    let keycode;
+    if p == 1 {
+        keycode = match i {
+            0 => config.keys.player1.left,
+            1 => config.keys.player1.right,
+            2 => config.keys.player1.up,
+            3 => config.keys.player1.down,
+            4 => config.keys.player1.o,
+            5 => config.keys.player1.x,
+            _ => panic!("Invalid keycode {}", i),
+        };
+    } else {
+        keycode = match i {
+            0 => config.keys.player2.left,
+            1 => config.keys.player2.right,
+            2 => config.keys.player2.up,
+            3 => config.keys.player2.down,
+            4 => config.keys.player2.o,
+            5 => config.keys.player2.x,
+            _ => panic!("Invalid keycode {}", i),
+        };
+    }
+
+    keystate_held.contains(&Scancode::from_i32(keycode).unwrap()) as i32
 }
 
 fn btnp(i: i32, p: i32) -> i32 {
@@ -159,18 +183,32 @@ fn btnp(i: i32, p: i32) -> i32 {
     if p != 1 && p != 2 {
         panic!("Invalid player number {}", p);
     }
-    let idx = (p - 1) as usize;
-    let val = match i {
-        0 => keystate_frame[idx].left,
-        1 => keystate_frame[idx].right,
-        2 => keystate_frame[idx].up,
-        3 => keystate_frame[idx].down,
-        4 => keystate_frame[idx].o,
-        5 => keystate_frame[idx].x,
-        _ => panic!("Invalid keycode {}", i),
-    };
 
-    val as i32
+    let config = CONFIG.lock().unwrap();
+    let keycode;
+    if p == 1 {
+        keycode = match i {
+            0 => config.keys.player1.left,
+            1 => config.keys.player1.right,
+            2 => config.keys.player1.up,
+            3 => config.keys.player1.down,
+            4 => config.keys.player1.o,
+            5 => config.keys.player1.x,
+            _ => panic!("Invalid keycode {}", i),
+        };
+    } else {
+        keycode = match i {
+            0 => config.keys.player2.left,
+            1 => config.keys.player2.right,
+            2 => config.keys.player2.up,
+            3 => config.keys.player2.down,
+            4 => config.keys.player2.o,
+            5 => config.keys.player2.x,
+            _ => panic!("Invalid keycode {}", i),
+        };
+    }
+
+    keystate_frame.contains(&Scancode::from_i32(keycode).unwrap()) as i32
 }
 
 pub fn putc(c: u8, wx: i32, y: i32, col: i32) {
@@ -199,7 +237,7 @@ pub fn print(caller: Caller, string_addr: i32, x: i32, y: i32, col: i32) {
                 for row_offset in 0u8..8 {
                     let row = font.byte_array()[row_offset as usize];
                     for bit in 0u8..8 {
-                        if (row >> (7 - bit)) & 1 == 1 {
+                        if (row >> bit) & 1 == 1 {
                             let loc = TerminalLocation(
                                 x + (offset * 8) + bit as i32,
                                 y + row_offset as i32,
@@ -221,13 +259,15 @@ pub fn printh(caller: Caller, string_addr: i32) {
     );
 }
 
+pub fn exit() {
+    std::process::exit(0); // lol
+}
+
 fn main() {
     if std::env::args().len() == 1 {
         println!("Usage: {} <Binary>", std::env::args().next().unwrap());
         std::process::exit(1);
     }
-
-    let config = Config::get_config_or_create();
 
     let mut path = "".to_owned();
     for x in std::env::args() {
@@ -259,6 +299,7 @@ fn main() {
     let mut missing_import_vec: Vec<String> = Vec::new();
     for import in runtime.module.as_ref().unwrap().imports() {
         match import.name() {
+            "exit" => import_vec.push(func_wrap!(runtime, exit)),
             "cls" => import_vec.push(func_wrap!(runtime, cls)),
             "pset" => import_vec.push(func_wrap!(runtime, pset)),
             "pget" => import_vec.push(func_wrap!(runtime, pget)),
@@ -268,6 +309,7 @@ fn main() {
             "btnp" => import_vec.push(func_wrap!(runtime, btnp)),
             "print" => import_vec.push(func_wrap!(runtime, print)),
             "printh" => import_vec.push(func_wrap!(runtime, printh)),
+            "key" => import_vec.push(func_wrap!(runtime, key)),
             _ => missing_import_vec.push(import.name().to_owned()),
         }
         println!("Attempting to import {}", import.name());
@@ -309,9 +351,11 @@ fn main() {
         canvas.present();
 
         {
+            let config = CONFIG.lock().unwrap();
             let mut keystate_frame = KEYSTATE_FRAME.lock().unwrap();
-            keystate_frame[0].reset();
-            keystate_frame[1].reset();
+            let mut keystate_frame_fifo = KEYSTATE_FRAME_FIFO.lock().unwrap();
+            keystate_frame.clear();
+            keystate_frame_fifo.clear();
             let mut keystate_held = KEYSTATE_HELD.lock().unwrap();
             for event in sdl_ctx.event_pump().unwrap().poll_iter() {
                 match event {
@@ -331,136 +375,21 @@ fn main() {
 
                     Event::KeyDown {
                         scancode: Some(kc), ..
-                    } if kc as i32 == config.keys.player1.left => {
-                        keystate_frame[0].left = true;
-                        keystate_held[0].left = true;
-                    }
-                    Event::KeyDown {
-                        scancode: Some(kc), ..
-                    } if kc as i32 == config.keys.player1.right => {
-                        keystate_frame[0].right = true;
-                        keystate_held[0].right = true;
-                    }
-                    Event::KeyDown {
-                        scancode: Some(kc), ..
-                    } if kc as i32 == config.keys.player1.up => {
-                        keystate_frame[0].up = true;
-                        keystate_held[0].up = true;
-                    }
-                    Event::KeyDown {
-                        scancode: Some(kc), ..
-                    } if kc as i32 == config.keys.player1.down => {
-                        keystate_frame[0].down = true;
-                        keystate_held[0].down = true;
-                    }
-                    Event::KeyDown {
-                        scancode: Some(kc), ..
-                    } if kc as i32 == config.keys.player1.o => {
-                        keystate_frame[0].o = true;
-                        keystate_held[0].o = true;
-                    }
-                    Event::KeyDown {
-                        scancode: Some(kc), ..
-                    } if kc as i32 == config.keys.player1.x => {
-                        keystate_frame[0].x = true;
-                        keystate_held[0].x = true;
-                    }
-                    Event::KeyDown {
-                        scancode: Some(kc), ..
-                    } if kc as i32 == config.keys.player2.left => {
-                        keystate_frame[1].left = true;
-                        keystate_held[1].left = true;
-                    }
-                    Event::KeyDown {
-                        scancode: Some(kc), ..
-                    } if kc as i32 == config.keys.player2.right => {
-                        keystate_frame[1].right = true;
-                        keystate_held[1].right = true;
-                    }
-                    Event::KeyDown {
-                        scancode: Some(kc), ..
-                    } if kc as i32 == config.keys.player2.up => {
-                        keystate_frame[1].up = true;
-                        keystate_held[1].up = true;
-                    }
-                    Event::KeyDown {
-                        scancode: Some(kc), ..
-                    } if kc as i32 == config.keys.player2.down => {
-                        keystate_frame[1].down = true;
-                        keystate_held[1].down = true;
-                    }
-                    Event::KeyDown {
-                        scancode: Some(kc), ..
-                    } if kc as i32 == config.keys.player2.o => {
-                        keystate_frame[1].o = true;
-                        keystate_held[1].o = true;
-                    }
-                    Event::KeyDown {
-                        scancode: Some(kc), ..
-                    } if kc as i32 == config.keys.player2.x => {
-                        keystate_frame[1].x = true;
-                        keystate_held[1].x = true;
+                    } => {
+                        keystate_frame.insert(kc);
+                        if !keystate_frame_fifo.contains(&kc) {
+                            keystate_frame_fifo.push(kc);
+                        }
+
+                        if !keystate_held.contains(&kc) {
+                            keystate_held.insert(kc);
+                        }
                     }
 
                     Event::KeyUp {
                         scancode: Some(kc), ..
-                    } if kc as i32 == config.keys.player1.left => {
-                        keystate_held[0].left = false;
-                    }
-                    Event::KeyUp {
-                        scancode: Some(kc), ..
-                    } if kc as i32 == config.keys.player1.right => {
-                        keystate_held[0].right = false;
-                    }
-                    Event::KeyUp {
-                        scancode: Some(kc), ..
-                    } if kc as i32 == config.keys.player1.up => {
-                        keystate_held[0].up = false;
-                    }
-                    Event::KeyUp {
-                        scancode: Some(kc), ..
-                    } if kc as i32 == config.keys.player1.down => {
-                        keystate_held[0].down = false;
-                    }
-                    Event::KeyUp {
-                        scancode: Some(kc), ..
-                    } if kc as i32 == config.keys.player1.o => {
-                        keystate_held[0].o = false;
-                    }
-                    Event::KeyUp {
-                        scancode: Some(kc), ..
-                    } if kc as i32 == config.keys.player1.x => {
-                        keystate_held[0].x = false;
-                    }
-                    Event::KeyUp {
-                        scancode: Some(kc), ..
-                    } if kc as i32 == config.keys.player2.left => {
-                        keystate_held[1].left = false;
-                    }
-                    Event::KeyUp {
-                        scancode: Some(kc), ..
-                    } if kc as i32 == config.keys.player2.right => {
-                        keystate_held[1].right = false;
-                    }
-                    Event::KeyUp {
-                        scancode: Some(kc), ..
-                    } if kc as i32 == config.keys.player2.up => {
-                        keystate_held[1].up = false;
-                    }
-                    Event::KeyUp {
-                        scancode: Some(kc), ..
-                    } if kc as i32 == config.keys.player2.down => {
-                        keystate_held[1].down = false;
-                    }
-                    Event::KeyUp {
-                        scancode: Some(kc), ..
-                    } if kc as i32 == config.keys.player2.o => {
-                        keystate_held[1].o = false;
-                    }
-                    Event::KeyUp {
-                        scancode: Some(kc), ..
-                    } if kc as i32 == config.keys.player2.x => {
-                        keystate_held[1].x = false;
+                    } => {
+                        keystate_held.remove(&kc);
                     }
 
                     _ => {}

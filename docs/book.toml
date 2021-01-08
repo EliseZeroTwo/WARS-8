@@ -1,0 +1,8 @@
+[book]
+authors = ["EliseZeroTwo"]
+language = "en"
+multilingual = false
+src = "src"
+title = "WARS-8 Documentation"
+[output.html]
+[output.linkcheck] 

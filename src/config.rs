@@ -64,7 +64,7 @@ impl Config {
                     x: Scancode::Q as i32,
                 },
                 quit: Scancode::Escape as i32,
-                pause: Scancode::P as i32,
+                pause: Scancode::Grave as i32,
             },
         }
     }

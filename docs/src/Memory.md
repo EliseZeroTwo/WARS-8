@@ -1,0 +1,2 @@
+# Memory
+WARS-8 expects the cartridge to define a WASM memory region called `memory`, the size of this does not matter as long as it does exceed the u32 max for pointer space. Rust will do this by default when compiling for wasm32-unknown-unknown.
