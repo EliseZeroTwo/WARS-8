@@ -1,4 +1,5 @@
 extern crate directories;
+extern crate font8x8;
 #[macro_use]
 extern crate lazy_static;
 extern crate sdl2;
@@ -15,28 +16,33 @@ mod config;
 mod fps_counter;
 mod palette;
 mod runtime;
+mod utils;
 mod wasm_runtime;
 
 use crate::config::Config;
 use crate::fps_counter::FpsCounter;
 use crate::palette::ColorPallete;
-use crate::wasm_runtime::WasmRuntime;
 use crate::runtime::*;
+use crate::utils::*;
+use crate::wasm_runtime::{WasmCallerWrapper, WasmRuntime};
+use font8x8::unicode::BASIC_UNICODE;
 use sdl2::event::Event;
 use sdl2::keyboard::Scancode;
 use sdl2::pixels::Color;
 use sdl2::pixels::PixelFormatEnum;
 use std::convert::From;
+use std::ffi::CStr;
+use std::os::raw::c_char;
 use std::sync::Mutex;
 use wasmtime::*;
 
 const WIDTH: i32 = 256;
 const HEIGHT: i32 = 256;
 const TARGET_FPS: f32 = 30.0;
-const FRAME_LEN_MS: u32 = ((1.0 / TARGET_FPS) * 1000.0) as u32; 
+const FRAME_LEN_MS: u32 = ((1.0 / TARGET_FPS) * 1000.0) as u32;
 
 #[derive(Copy, Clone, Debug)]
-pub struct TerminalLocation (pub i32, pub i32);
+pub struct TerminalLocation(pub i32, pub i32);
 
 impl From<TerminalLocation> for usize {
     fn from(loc: TerminalLocation) -> Self {
@@ -77,7 +83,8 @@ impl KeyState {
 }
 
 lazy_static! {
-    static ref PXBUF_MUTEX: Mutex<[ColorPallete; (WIDTH * HEIGHT) as usize]> = Mutex::new([ColorPallete::Black; (WIDTH * HEIGHT) as usize]);
+    static ref PXBUF_MUTEX: Mutex<[ColorPallete; (WIDTH * HEIGHT) as usize]> =
+        Mutex::new([ColorPallete::Black; (WIDTH * HEIGHT) as usize]);
     static ref KEYSTATE_FRAME: Mutex<[KeyState; 2]> = Mutex::new([KeyState::new(); 2]);
     static ref KEYSTATE_HELD: Mutex<[KeyState; 2]> = Mutex::new([KeyState::new(); 2]);
 }
@@ -143,7 +150,7 @@ fn btn(i: i32, p: i32) -> i32 {
         5 => keystate_held[idx].x,
         _ => panic!("Invalid keycode {}", i),
     };
-    
+
     val as i32
 }
 
@@ -162,8 +169,56 @@ fn btnp(i: i32, p: i32) -> i32 {
         5 => keystate_frame[idx].x,
         _ => panic!("Invalid keycode {}", i),
     };
-    
+
     val as i32
+}
+
+pub fn putc(c: u8, wx: i32, y: i32, col: i32) {
+    if (c as usize) < BASIC_UNICODE.len() {
+        let font = BASIC_UNICODE[c as usize];
+        for row_offset in 0..8 {
+            let row = font.byte_array()[row_offset];
+            for bit in 0..8 {
+                if (row >> (7 - bit)) & 1 == 1 {}
+            }
+        }
+    }
+}
+
+pub fn print(caller: Caller, string_addr: i32, x: i32, y: i32, col: i32) {
+    let color = ColorPallete::from(col);
+    let caller_wrapper = WasmCallerWrapper::new(caller);
+    let mut pxbuf_lock = PXBUF_MUTEX.lock().unwrap();
+    unsafe {
+        let str = read_cstr(&caller_wrapper, string_addr);
+        let mut offset = 0;
+        for ch in str.as_bytes() {
+            let char = *ch;
+            if (char as usize) < BASIC_UNICODE.len() {
+                let font = BASIC_UNICODE[char as usize];
+                for row_offset in 0u8..8 {
+                    let row = font.byte_array()[row_offset as usize];
+                    for bit in 0u8..8 {
+                        if (row >> (7 - bit)) & 1 == 1 {
+                            let loc = TerminalLocation(
+                                x + (offset * 8) + bit as i32,
+                                y + row_offset as i32,
+                            );
+                            pxbuf_lock[usize::from(loc)] = color;
+                        }
+                    }
+                }
+            }
+            offset += 1;
+        }
+    }
+}
+
+pub fn printh(caller: Caller, string_addr: i32) {
+    println!(
+        "{}",
+        read_cstr(&WasmCallerWrapper::new(caller), string_addr)
+    );
 }
 
 fn main() {
@@ -181,10 +236,18 @@ fn main() {
 
     // Setup SDL
     let sdl_ctx = sdl2::init().unwrap();
-    let window = sdl_ctx.video().unwrap().window("WARS-8", WIDTH as u32, HEIGHT as u32).position_centered().build().unwrap();
+    let window = sdl_ctx
+        .video()
+        .unwrap()
+        .window("WARS-8", WIDTH as u32, HEIGHT as u32)
+        .position_centered()
+        .build()
+        .unwrap();
     let mut canvas = window.into_canvas().build().unwrap();
     let texture_creator = canvas.texture_creator();
-    let mut texture = texture_creator.create_texture_streaming(PixelFormatEnum::RGBX8888, WIDTH as u32, HEIGHT as u32).unwrap();
+    let mut texture = texture_creator
+        .create_texture_streaming(PixelFormatEnum::RGBX8888, WIDTH as u32, HEIGHT as u32)
+        .unwrap();
 
     let binary_res = std::fs::read(path);
     if let Err(why) = binary_res {
@@ -203,13 +266,19 @@ fn main() {
             "rectfill" => import_vec.push(func_wrap!(runtime, rectfill)),
             "btn" => import_vec.push(func_wrap!(runtime, btn)),
             "btnp" => import_vec.push(func_wrap!(runtime, btnp)),
+            "print" => import_vec.push(func_wrap!(runtime, print)),
+            "printh" => import_vec.push(func_wrap!(runtime, printh)),
             _ => missing_import_vec.push(import.name().to_owned()),
         }
         println!("Attempting to import {}", import.name());
     }
 
     if missing_import_vec.len() != 0 {
-        panic!(format!("Missing {} imports: {:?}", missing_import_vec.len(), missing_import_vec));
+        panic!(format!(
+            "Missing {} imports: {:?}",
+            missing_import_vec.len(),
+            missing_import_vec
+        ));
     }
 
     runtime.update_api(&import_vec[..]);
@@ -223,16 +292,18 @@ fn main() {
         runtime.update();
         runtime.draw();
 
-        texture.with_lock(None, |buffer: &mut [u8], _pitch: usize| {
-            let framebuffer = PXBUF_MUTEX.lock().unwrap();
-            for idx in 0..framebuffer.len() {
-                let raw_idx = idx * 4;
-                let color = Color::from(framebuffer[idx]);
-                buffer[raw_idx + 1] = color.b;
-                buffer[raw_idx + 2] = color.g;
-                buffer[raw_idx + 3] = color.r;
-            }
-        }).unwrap();
+        texture
+            .with_lock(None, |buffer: &mut [u8], _pitch: usize| {
+                let framebuffer = PXBUF_MUTEX.lock().unwrap();
+                for idx in 0..framebuffer.len() {
+                    let raw_idx = idx * 4;
+                    let color = Color::from(framebuffer[idx]);
+                    buffer[raw_idx + 1] = color.b;
+                    buffer[raw_idx + 2] = color.g;
+                    buffer[raw_idx + 3] = color.r;
+                }
+            })
+            .unwrap();
 
         canvas.copy(&texture, None, None).unwrap();
         canvas.present();
@@ -244,37 +315,155 @@ fn main() {
             let mut keystate_held = KEYSTATE_HELD.lock().unwrap();
             for event in sdl_ctx.event_pump().unwrap().poll_iter() {
                 match event {
-                    Event::Quit {..} => { break 'sdlloop; },
-                    Event::KeyDown { scancode: Some(kc), .. } if kc as i32 == config.keys.quit => { break 'sdlloop; },
-                    Event::KeyDown { scancode: Some(kc), .. } if kc as i32 == config.keys.pause => { paused = !paused; },
+                    Event::Quit { .. } => {
+                        break 'sdlloop;
+                    }
+                    Event::KeyDown {
+                        scancode: Some(kc), ..
+                    } if kc as i32 == config.keys.quit => {
+                        break 'sdlloop;
+                    }
+                    Event::KeyDown {
+                        scancode: Some(kc), ..
+                    } if kc as i32 == config.keys.pause => {
+                        paused = !paused;
+                    }
 
-                    Event::KeyDown { scancode: Some(kc), .. } if kc as i32 == config.keys.player1.left => { keystate_frame[0].left = true; keystate_held[0].left = true; },
-                    Event::KeyDown { scancode: Some(kc), .. } if kc as i32 == config.keys.player1.right => { keystate_frame[0].right = true; keystate_held[0].right = true; },
-                    Event::KeyDown { scancode: Some(kc), .. } if kc as i32 == config.keys.player1.up => { keystate_frame[0].up = true; keystate_held[0].up = true; },
-                    Event::KeyDown { scancode: Some(kc), .. } if kc as i32 == config.keys.player1.down => { keystate_frame[0].down = true; keystate_held[0].down = true; },
-                    Event::KeyDown { scancode: Some(kc), .. } if kc as i32 == config.keys.player1.o => { keystate_frame[0].o = true; keystate_held[0].o = true; },
-                    Event::KeyDown { scancode: Some(kc), .. } if kc as i32 == config.keys.player1.x => { keystate_frame[0].x = true; keystate_held[0].x = true; },
-                    Event::KeyDown { scancode: Some(kc), .. } if kc as i32 == config.keys.player2.left => { keystate_frame[1].left = true; keystate_held[1].left = true; },
-                    Event::KeyDown { scancode: Some(kc), .. } if kc as i32 == config.keys.player2.right => { keystate_frame[1].right = true; keystate_held[1].right = true; },
-                    Event::KeyDown { scancode: Some(kc), .. } if kc as i32 == config.keys.player2.up => { keystate_frame[1].up = true; keystate_held[1].up = true; },
-                    Event::KeyDown { scancode: Some(kc), .. } if kc as i32 == config.keys.player2.down => { keystate_frame[1].down = true; keystate_held[1].down = true; },
-                    Event::KeyDown { scancode: Some(kc), .. } if kc as i32 == config.keys.player2.o => { keystate_frame[1].o = true; keystate_held[1].o = true; },
-                    Event::KeyDown { scancode: Some(kc), .. } if kc as i32 == config.keys.player2.x => { keystate_frame[1].x = true; keystate_held[1].x = true; },
-                    
-                    Event::KeyUp { scancode: Some(kc), .. } if kc as i32 == config.keys.player1.left => { keystate_held[0].left = false; },
-                    Event::KeyUp { scancode: Some(kc), .. } if kc as i32 == config.keys.player1.right => { keystate_held[0].right = false; },
-                    Event::KeyUp { scancode: Some(kc), .. } if kc as i32 == config.keys.player1.up => { keystate_held[0].up = false; },
-                    Event::KeyUp { scancode: Some(kc), .. } if kc as i32 == config.keys.player1.down => { keystate_held[0].down = false; },
-                    Event::KeyUp { scancode: Some(kc), .. } if kc as i32 == config.keys.player1.o => { keystate_held[0].o = false; },
-                    Event::KeyUp { scancode: Some(kc), .. } if kc as i32 == config.keys.player1.x => { keystate_held[0].x = false; },
-                    Event::KeyUp { scancode: Some(kc), .. } if kc as i32 == config.keys.player2.left => { keystate_held[1].left = false; },
-                    Event::KeyUp { scancode: Some(kc), .. } if kc as i32 == config.keys.player2.right => { keystate_held[1].right = false; },
-                    Event::KeyUp { scancode: Some(kc), .. } if kc as i32 == config.keys.player2.up => { keystate_held[1].up = false; },
-                    Event::KeyUp { scancode: Some(kc), .. } if kc as i32 == config.keys.player2.down => { keystate_held[1].down = false; },
-                    Event::KeyUp { scancode: Some(kc), .. } if kc as i32 == config.keys.player2.o => { keystate_held[1].o = false; },
-                    Event::KeyUp { scancode: Some(kc), .. } if kc as i32 == config.keys.player2.x => { keystate_held[1].x = false; },
+                    Event::KeyDown {
+                        scancode: Some(kc), ..
+                    } if kc as i32 == config.keys.player1.left => {
+                        keystate_frame[0].left = true;
+                        keystate_held[0].left = true;
+                    }
+                    Event::KeyDown {
+                        scancode: Some(kc), ..
+                    } if kc as i32 == config.keys.player1.right => {
+                        keystate_frame[0].right = true;
+                        keystate_held[0].right = true;
+                    }
+                    Event::KeyDown {
+                        scancode: Some(kc), ..
+                    } if kc as i32 == config.keys.player1.up => {
+                        keystate_frame[0].up = true;
+                        keystate_held[0].up = true;
+                    }
+                    Event::KeyDown {
+                        scancode: Some(kc), ..
+                    } if kc as i32 == config.keys.player1.down => {
+                        keystate_frame[0].down = true;
+                        keystate_held[0].down = true;
+                    }
+                    Event::KeyDown {
+                        scancode: Some(kc), ..
+                    } if kc as i32 == config.keys.player1.o => {
+                        keystate_frame[0].o = true;
+                        keystate_held[0].o = true;
+                    }
+                    Event::KeyDown {
+                        scancode: Some(kc), ..
+                    } if kc as i32 == config.keys.player1.x => {
+                        keystate_frame[0].x = true;
+                        keystate_held[0].x = true;
+                    }
+                    Event::KeyDown {
+                        scancode: Some(kc), ..
+                    } if kc as i32 == config.keys.player2.left => {
+                        keystate_frame[1].left = true;
+                        keystate_held[1].left = true;
+                    }
+                    Event::KeyDown {
+                        scancode: Some(kc), ..
+                    } if kc as i32 == config.keys.player2.right => {
+                        keystate_frame[1].right = true;
+                        keystate_held[1].right = true;
+                    }
+                    Event::KeyDown {
+                        scancode: Some(kc), ..
+                    } if kc as i32 == config.keys.player2.up => {
+                        keystate_frame[1].up = true;
+                        keystate_held[1].up = true;
+                    }
+                    Event::KeyDown {
+                        scancode: Some(kc), ..
+                    } if kc as i32 == config.keys.player2.down => {
+                        keystate_frame[1].down = true;
+                        keystate_held[1].down = true;
+                    }
+                    Event::KeyDown {
+                        scancode: Some(kc), ..
+                    } if kc as i32 == config.keys.player2.o => {
+                        keystate_frame[1].o = true;
+                        keystate_held[1].o = true;
+                    }
+                    Event::KeyDown {
+                        scancode: Some(kc), ..
+                    } if kc as i32 == config.keys.player2.x => {
+                        keystate_frame[1].x = true;
+                        keystate_held[1].x = true;
+                    }
 
-                    _ => { }
+                    Event::KeyUp {
+                        scancode: Some(kc), ..
+                    } if kc as i32 == config.keys.player1.left => {
+                        keystate_held[0].left = false;
+                    }
+                    Event::KeyUp {
+                        scancode: Some(kc), ..
+                    } if kc as i32 == config.keys.player1.right => {
+                        keystate_held[0].right = false;
+                    }
+                    Event::KeyUp {
+                        scancode: Some(kc), ..
+                    } if kc as i32 == config.keys.player1.up => {
+                        keystate_held[0].up = false;
+                    }
+                    Event::KeyUp {
+                        scancode: Some(kc), ..
+                    } if kc as i32 == config.keys.player1.down => {
+                        keystate_held[0].down = false;
+                    }
+                    Event::KeyUp {
+                        scancode: Some(kc), ..
+                    } if kc as i32 == config.keys.player1.o => {
+                        keystate_held[0].o = false;
+                    }
+                    Event::KeyUp {
+                        scancode: Some(kc), ..
+                    } if kc as i32 == config.keys.player1.x => {
+                        keystate_held[0].x = false;
+                    }
+                    Event::KeyUp {
+                        scancode: Some(kc), ..
+                    } if kc as i32 == config.keys.player2.left => {
+                        keystate_held[1].left = false;
+                    }
+                    Event::KeyUp {
+                        scancode: Some(kc), ..
+                    } if kc as i32 == config.keys.player2.right => {
+                        keystate_held[1].right = false;
+                    }
+                    Event::KeyUp {
+                        scancode: Some(kc), ..
+                    } if kc as i32 == config.keys.player2.up => {
+                        keystate_held[1].up = false;
+                    }
+                    Event::KeyUp {
+                        scancode: Some(kc), ..
+                    } if kc as i32 == config.keys.player2.down => {
+                        keystate_held[1].down = false;
+                    }
+                    Event::KeyUp {
+                        scancode: Some(kc), ..
+                    } if kc as i32 == config.keys.player2.o => {
+                        keystate_held[1].o = false;
+                    }
+                    Event::KeyUp {
+                        scancode: Some(kc), ..
+                    } if kc as i32 == config.keys.player2.x => {
+                        keystate_held[1].x = false;
+                    }
+
+                    _ => {}
                 }
             }
         }

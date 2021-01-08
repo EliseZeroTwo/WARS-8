@@ -4,6 +4,8 @@ pub enum Runtimes {
 }
 
 pub trait Runtime {
+    fn peek(&mut self, addr: u32) -> u8;
+    fn poke(&mut self, addr: u32, val: u8);
     fn init(&mut self);
     fn update(&mut self);
     fn draw(&mut self);
@@ -11,7 +13,11 @@ pub trait Runtime {
 
 pub struct NoRuntime();
 impl Runtime for NoRuntime {
-    fn init(&mut self) { }
-    fn update(&mut self) { }
-    fn draw(&mut self) { }
+    fn peek(&mut self, addr: u32) -> u8 {
+        0
+    }
+    fn poke(&mut self, addr: u32, val: u8) {}
+    fn init(&mut self) {}
+    fn update(&mut self) {}
+    fn draw(&mut self) {}
 }

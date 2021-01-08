@@ -39,8 +39,8 @@ impl From<i32> for ColorPallete {
             13 => ColorPallete::PalePurple,
             14 => ColorPallete::Pink,
             15 => ColorPallete::Peach,
-            _ => panic!("Invalid color {}", color)
-        } 
+            _ => panic!("Invalid color {}", color),
+        }
     }
 }
 

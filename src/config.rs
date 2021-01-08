@@ -1,6 +1,6 @@
 use directories::ProjectDirs;
 use sdl2::keyboard::Scancode;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use std::fs;
 
 // Lin: /home/elise/.config/WARS-8/config.json
@@ -65,13 +65,13 @@ impl Config {
                 },
                 quit: Scancode::Escape as i32,
                 pause: Scancode::P as i32,
-            }
+            },
         }
     }
 
     pub fn get_config_or_create() -> Config {
         let mut config: Config = Config::new();
-        if let Some(proj_dirs) = ProjectDirs::from("services", "headpat",  "WARS-8") {
+        if let Some(proj_dirs) = ProjectDirs::from("services", "headpat", "WARS-8") {
             let path = proj_dirs.config_dir();
             if !path.exists() {
                 if let Err(why) = fs::create_dir_all(path) {
@@ -85,16 +85,16 @@ impl Config {
                     panic!("Not able to create config! Reason: {}", why);
                 }
             } else {
-                match fs::read_to_string(&path){
-                    Ok(content) => {
-                        match serde_json::from_str(&content) {
-                            Ok(cfg) => config = cfg,
-                            Err(_) => {
-                                fs::remove_file(&path).unwrap();
-                                if let Err(why) = fs::write(&path, serde_json::to_string_pretty(&config).unwrap()) {
-                                    panic!("Not able to create config! Reason: {}", why);
-                                }
-                            },
+                match fs::read_to_string(&path) {
+                    Ok(content) => match serde_json::from_str(&content) {
+                        Ok(cfg) => config = cfg,
+                        Err(_) => {
+                            fs::remove_file(&path).unwrap();
+                            if let Err(why) =
+                                fs::write(&path, serde_json::to_string_pretty(&config).unwrap())
+                            {
+                                panic!("Not able to create config! Reason: {}", why);
+                            }
                         }
                     },
                     Err(why) => panic!("Unable to read config file! Reason: {}", why),
@@ -105,7 +105,7 @@ impl Config {
     }
 
     pub fn save_config(&self) {
-        if let Some(proj_dirs) = ProjectDirs::from("services", "headpat",  "WARS-8") {
+        if let Some(proj_dirs) = ProjectDirs::from("services", "headpat", "WARS-8") {
             let path = proj_dirs.config_dir();
             if !path.exists() {
                 if let Err(why) = fs::create_dir_all(path) {

@@ -440,6 +440,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "font8x8"
+version = "0.2.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e63201c624b8c8883921b1a1accc8916c4fa9dbfb15d122b26e4dde945b86bbf"
+
+[[package]]
 name = "gcc"
 version = "0.3.55"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1028,6 +1034,7 @@ name = "wars-8"
 version = "0.1.0"
 dependencies = [
  "directories",
+ "font8x8",
  "lazy_static",
  "sdl2",
  "serde",
