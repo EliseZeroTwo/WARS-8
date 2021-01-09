@@ -91,7 +91,7 @@ pub fn print(caller: Caller, string_addr: i32, x: i32, y: i32, col: i32) {
         let str = read_cstr(&caller_wrapper, string_addr);
         let mut offset = 0;
         for ch in str.as_bytes() {
-            if offset >= 16 {
+            if offset >= 32 {
                 break;
             }
 
@@ -102,11 +102,11 @@ pub fn print(caller: Caller, string_addr: i32, x: i32, y: i32, col: i32) {
                     let row = font.byte_array()[row_offset as usize];
                     for bit in 0u8..8 {
                         if (row >> bit) & 1 == 1 {
-                            for y_scale in 0..2 {
-                                for x_scale in 0..2 {
+                            for y_scale in 0..1 {
+                                for x_scale in 0..1 {
                                     let loc = TerminalLocation(
-                                        x + (offset * 16) + (bit * 2) as i32 + x_scale,
-                                        y + (row_offset * 2) as i32 + y_scale,
+                                        x + (offset * 8) + (bit * 1) as i32 + x_scale,
+                                        y + (row_offset * 1) as i32 + y_scale,
                                     );
                                     pxbuf_lock[usize::from(loc)] = color;
                                 }

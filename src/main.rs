@@ -14,6 +14,7 @@ macro_rules! func_wrap {
     };
 }
 
+mod cart;
 mod config;
 mod palette;
 mod runtime;
@@ -22,6 +23,8 @@ mod utils;
 // Api
 mod api;
 
+use crate::cart::Cart;
+use crate::cart::wasm_binary::WasmBinary;
 use crate::config::Config;
 use crate::palette::ColorPallete;
 use crate::runtime::wasm_runtime::WasmRuntime;
@@ -72,12 +75,24 @@ fn main() {
         path = x;
     }
 
+    let ext = match path.rfind('.') {
+        Some(idx) => path[(idx + 1)..].to_string(),
+        None => String::new(),
+    };
+
+    let binary: Box<dyn Cart> = match ext.to_lowercase().as_str() {
+        "wasm" => {
+            Box::new(WasmBinary::new(path))
+        },
+        _ => panic!("Unknown format: {}", ext),
+    };
+
     // Setup SDL
     let sdl_ctx = sdl2::init().unwrap();
     let window = sdl_ctx
         .video()
         .unwrap()
-        .window("WARS-8", WIDTH as u32, HEIGHT as u32)
+        .window(format!("WARS-8 [{}]", binary.name()).as_str(), WIDTH as u32, HEIGHT as u32)
         .position_centered()
         .build()
         .unwrap();
@@ -87,12 +102,8 @@ fn main() {
         .create_texture_streaming(PixelFormatEnum::RGBX8888, WIDTH as u32, HEIGHT as u32)
         .unwrap();
 
-    let binary_res = std::fs::read(path);
-    if let Err(why) = binary_res {
-        panic!("Failed to read binary! Reason: {}", why);
-    }
 
-    let mut runtime = WasmRuntime::new(&binary_res.unwrap()[..]);
+    let mut runtime = WasmRuntime::new(binary.binary());
     let mut import_vec: Vec<Extern> = Vec::new();
     let mut missing_import_vec: Vec<String> = Vec::new();
     for import in runtime.module.as_ref().unwrap().imports() {
