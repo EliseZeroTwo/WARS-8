@@ -2,6 +2,8 @@ extern crate directories;
 extern crate font8x8;
 #[macro_use]
 extern crate lazy_static;
+extern crate rand;
+extern crate rand_pcg;
 extern crate sdl2;
 extern crate serde_json;
 extern crate wasmtime;
@@ -25,6 +27,7 @@ use crate::palette::ColorPallete;
 use crate::runtime::wasm_runtime::WasmRuntime;
 use crate::runtime::*;
 use crate::utils::*;
+use rand_pcg::Pcg64Mcg;
 use sdl2::event::Event;
 use sdl2::keyboard::Scancode;
 use sdl2::pixels::Color;
@@ -55,6 +58,7 @@ lazy_static! {
     static ref KEYSTATE_FRAME_FIFO: Mutex<Vec<Scancode>> = Mutex::new(Vec::new());
     static ref KEYSTATE_HELD: Mutex<HashSet<Scancode>> = Mutex::new(HashSet::new());
     static ref CONFIG: Mutex<Config> = Mutex::new(Config::get_config_or_create());
+    static ref RAND_SRC: Mutex<Pcg64Mcg> = Mutex::new(Pcg64Mcg::new(0xcafef00dbeefd34d));
 }
 
 fn main() {
@@ -104,6 +108,28 @@ fn main() {
             "btn" => import_vec.push(func_wrap!(runtime, api::input::btn)),
             "btnp" => import_vec.push(func_wrap!(runtime, api::input::btnp)),
             "key" => import_vec.push(func_wrap!(runtime, api::input::key)),
+
+            "abs" => import_vec.push(func_wrap!(runtime, api::math::abs)),
+            "atan2" => import_vec.push(func_wrap!(runtime, api::math::atan2)),
+            "band" => import_vec.push(func_wrap!(runtime, api::math::band)),
+            "bnot" => import_vec.push(func_wrap!(runtime, api::math::bnot)),
+            "bor" => import_vec.push(func_wrap!(runtime, api::math::bor)),
+            "bxor" => import_vec.push(func_wrap!(runtime, api::math::bxor)),
+            "cos" => import_vec.push(func_wrap!(runtime, api::math::cos)),
+            "flr" => import_vec.push(func_wrap!(runtime, api::math::flr)),
+            "maxf" => import_vec.push(func_wrap!(runtime, api::math::maxf)),
+            "max" => import_vec.push(func_wrap!(runtime, api::math::max)),
+            "mid" => import_vec.push(func_wrap!(runtime, api::math::mid)),
+            "min" => import_vec.push(func_wrap!(runtime, api::math::min)),
+            "minf" => import_vec.push(func_wrap!(runtime, api::math::minf)),
+            "rnd" => import_vec.push(func_wrap!(runtime, api::math::rnd)),
+            "sgn" => import_vec.push(func_wrap!(runtime, api::math::sgn)),
+            "shl" => import_vec.push(func_wrap!(runtime, api::math::shl)),
+            "shr" => import_vec.push(func_wrap!(runtime, api::math::shr)),
+            "sin" => import_vec.push(func_wrap!(runtime, api::math::sin)),
+            "sqrt" => import_vec.push(func_wrap!(runtime, api::math::sqrt)),
+            "sqrtf" => import_vec.push(func_wrap!(runtime, api::math::sqrtf)),
+            "srand" => import_vec.push(func_wrap!(runtime, api::math::srand)),
 
             "exit" => import_vec.push(func_wrap!(runtime, api::misc::exit)),
             _ => missing_import_vec.push(import.name().to_owned()),
