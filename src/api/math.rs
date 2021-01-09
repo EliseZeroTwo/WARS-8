@@ -69,7 +69,7 @@ pub fn rnd(x: i32) -> i32 {
 pub fn srand(x: i32) {
     let u_x = x as u128;
     let seed: u128 = (u_x << 12) | (u_x << 8) | (u_x << 4) | (u_x);
-    *RAND_SRC.lock().unwrap() = Pcg64Mcg::new(u_x);
+    *RAND_SRC.lock().unwrap() = Pcg64Mcg::new(seed);
 }
 
 pub fn sgn(x: i32) -> i32 {
