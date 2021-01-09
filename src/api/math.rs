@@ -27,7 +27,7 @@ pub fn bxor(x: i32, y: i32) -> i32 {
 }
 
 pub fn cos(x: f32) -> f32 {
-    x.cos()
+    ((std::f32::consts::PI * 2.0) / x).cos()
 }
 
 pub fn flr(x: f32) -> f32 {
@@ -89,7 +89,7 @@ pub fn shr(x: i32, y: i32) -> i32 {
 }
 
 pub fn sin(x: f32) -> f32 {
-    x.sin()
+    ((std::f32::consts::PI * 2.0) / x).asin()
 }
 
 pub fn sqrt(x: i32) -> f32 {
