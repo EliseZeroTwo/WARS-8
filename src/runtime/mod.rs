@@ -1,3 +1,5 @@
+pub mod wasm_runtime;
+
 pub enum Runtimes {
     None,
     Wasm,
