@@ -1,4 +1,5 @@
 use crate::cart::Cart;
+use crate::palette::ColorPallete;
 use std::fs;
 
 pub struct WasmBinary {
@@ -7,7 +8,7 @@ pub struct WasmBinary {
 }
 
 impl WasmBinary {
-    pub fn new(path: String) -> WasmBinary {
+    pub fn new(path: &String) -> WasmBinary {
         let metadata = match fs::metadata(&path) {
             Ok(md) => md,
             Err(why) => panic!("Unable to open file {}, reason: {}", path, why),
@@ -18,7 +19,7 @@ impl WasmBinary {
         }
 
         if metadata.len() >= u32::MAX as u64 {
-            panic!("{} is {} bytes too big! ({} total)", path, metadata.len() - u32::MAX as u64, metadata.len());
+            panic!("{} is {} bytes too big! (total: {}, limit {})", path, metadata.len() - u32::MAX as u64, metadata.len(), u32::MAX);
         }
 
         let name: String = match path.rfind('/') {
@@ -53,5 +54,17 @@ impl Cart for WasmBinary {
 
     fn binary(&self) -> &[u8] {
         &self.binary
+    }
+
+    fn get_sprite(&self, idx: i32) -> Option<[[ColorPallete; 8]; 8]> {
+        None
+    }
+
+    fn get_map_cell(&self, cellx: i32, celly: i32) -> u8 {
+        0
+    }
+
+    fn save(&self) -> Result<(), ()> {
+        Ok(())
     }
 }

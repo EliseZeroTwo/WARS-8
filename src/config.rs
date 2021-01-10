@@ -1,7 +1,7 @@
 use directories::ProjectDirs;
 use sdl2::keyboard::Scancode;
 use serde::{Deserialize, Serialize};
-use std::fs;
+use std::{fs, path::Path};
 
 // Lin: /home/elise/.config/WARS-8/config.json
 // Win: C:\Users\elise\AppData\Roaming\headpat\WARS-8\config\config.json
@@ -69,38 +69,55 @@ impl Config {
         }
     }
 
+    pub fn get_config_dir_or_create() -> Option<String> {
+        match  ProjectDirs::from("services", "headpat", "WARS-8") {
+            Some(proj_dirs) => {
+                let config_dir = proj_dirs.config_dir();
+                if !config_dir.exists() {
+                    if let Err(why) = fs::create_dir_all(config_dir) {
+                        panic!("Not able to create config directory! Reason: {}", why);
+                    }
+                }
+                
+                match config_dir.to_str() {
+                    Some(path) => Some(path.to_string()),
+                    None=> None,
+                }
+            },
+            None => None,
+        }
+    }
+
     pub fn get_config_or_create() -> Config {
         let mut config: Config = Config::new();
-        if let Some(proj_dirs) = ProjectDirs::from("services", "headpat", "WARS-8") {
-            let path = proj_dirs.config_dir();
-            if !path.exists() {
-                if let Err(why) = fs::create_dir_all(path) {
-                    panic!("Not able to create config directory! Reason: {}", why);
-                }
-            }
-
-            let path = path.join("config.json");
-            if !path.exists() {
-                if let Err(why) = fs::write(path, serde_json::to_string_pretty(&config).unwrap()) {
-                    panic!("Not able to create config! Reason: {}", why);
-                }
-            } else {
-                match fs::read_to_string(&path) {
-                    Ok(content) => match serde_json::from_str(&content) {
-                        Ok(cfg) => config = cfg,
-                        Err(_) => {
-                            fs::remove_file(&path).unwrap();
-                            if let Err(why) =
-                                fs::write(&path, serde_json::to_string_pretty(&config).unwrap())
-                            {
-                                panic!("Not able to create config! Reason: {}", why);
-                            }
-                        }
-                    },
-                    Err(why) => panic!("Unable to read config file! Reason: {}", why),
-                }
-            }
+        let path_str = match Config::get_config_dir_or_create() {
+            Some(ps) => ps,
+            None => "./wars8".to_string(),
         };
+        
+        let path = std::path::Path::new(&path_str);
+
+        let path = path.join("config.json");
+        if !path.exists() {
+            if let Err(why) = fs::write(path, serde_json::to_string_pretty(&config).unwrap()) {
+                panic!("Not able to create config! Reason: {}", why);
+            }
+        } else {
+            match fs::read_to_string(&path) {
+                Ok(content) => match serde_json::from_str(&content) {
+                    Ok(cfg) => config = cfg,
+                    Err(_) => {
+                        fs::remove_file(&path).unwrap();
+                        if let Err(why) =
+                            fs::write(&path, serde_json::to_string_pretty(&config).unwrap())
+                        {
+                            panic!("Not able to create config! Reason: {}", why);
+                        }
+                    }
+                },
+                Err(why) => panic!("Unable to read config file! Reason: {}", why),
+            }
+        }
         config
     }
 

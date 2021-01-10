@@ -7,26 +7,32 @@
 |-------------|--------|
 | Black       | 0      |
 | Dark Blue   | 1      |
-| Magenta     | 2      |
+| Dark Purple | 2      |
 | Dark Green  | 3      |
-| Bronze      | 4      |
-| Grey        | 5      |
-| Silver      | 6      |
-| Off White   | 7      |
+| Brown       | 4      |
+| Dark Grey   | 5      |
+| Light Grey  | 6      |
+| White       | 7      |
 | Red         | 8      |
-| Gold        | 9      |
+| Orange      | 9      |
 | Yellow      | 10     |
 | Green       | 11     |
-| Sky Blue    | 12     |
-| Pale Purple | 13     |
+| Blue        | 12     |
+| Indigo      | 13     |
 | Pink        | 14     |
 | Peach       | 15     |
+
+### `cls(color: i32)`
+Fills framebuffer with color
 
 ### `rect(x0: i32, y0: i32, x1: i32, y1: i32, color: i32)`
 Draws a rectangle with points (`x0`, `y0`), (`x1`, `y1`)
 
 ### `rectfill(x0: i32, y0: i32, x1: i32, y1: i32, color: i32)`
 Draws and fills a rectangle with points (`x0`, `y0`), (`x1`, `y1`)
+
+### `pget(x: i32, y: i32)` ➜ `i32`
+Gets the color of the pixel at (`x`, `y`)
 
 ### `pset(x: i32, y: i32, color: i32)`
 Sets a pixel at (`x`, `y`) to `color`
@@ -68,3 +74,12 @@ Returns scancode of keyboard key pressed during last frame or 0 if there were no
 
 ### `exit()` ➜ `!`
 Exits
+
+### `save()`
+Saves the cartridge, overwriting the old copy
+
+### `load(string: *const c_char)` ➜ `i32`
+Loads a cartridge located at `string` (null-terminated ASCII char pointer) in the WARS-8 directory ([See Config.md](/Config.md))
+
+### `unload()`
+Unloads the current cartridge which will make the console attempt to load the boot cartridge

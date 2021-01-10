@@ -1,5 +1,13 @@
+use crate::api;
+
 use core::panic;
 use std::{u32, usize};
+
+macro_rules! func_wrap {
+    ($wasm_runtime:expr, $func:expr) => {
+        Func::wrap(&$wasm_runtime.store.as_ref().unwrap(), $func).into()
+    };
+}
 
 use crate::runtime::Runtime;
 use wasmtime::*;
@@ -72,52 +80,109 @@ impl WasmRuntime {
         }
         rt.module = Some(module.unwrap());
 
-        rt
-    }
+        let mut import_vec: Vec<Extern> = Vec::new();
+        let mut missing_import_vec: Vec<String> = Vec::new();
+        for import in rt.module.as_ref().unwrap().imports() {
+            match import.name() {
+                "cls" => import_vec.push(func_wrap!(rt, api::gfx::cls)),
+                "rect" => import_vec.push(func_wrap!(rt, api::gfx::rect)),
+                "rectfill" => import_vec.push(func_wrap!(rt, api::gfx::rectfill)),
+                "pget" => import_vec.push(func_wrap!(rt, api::gfx::pget)),
+                "pset" => import_vec.push(func_wrap!(rt, api::gfx::pset)),
+                "print" => import_vec.push(func_wrap!(rt, api::gfx::print)),
+                "printh" => import_vec.push(func_wrap!(rt, api::gfx::printh)),
+                
+                "btn" => import_vec.push(func_wrap!(rt, api::input::btn)),
+                "btnp" => import_vec.push(func_wrap!(rt, api::input::btnp)),
+                "key" => import_vec.push(func_wrap!(rt, api::input::key)),
 
-    pub fn update_api(&mut self, api: &[Extern]) {
-        self.instance = Some(
+                "abs" => import_vec.push(func_wrap!(rt, api::math::abs)),
+                "atan2" => import_vec.push(func_wrap!(rt, api::math::atan2)),
+                "band" => import_vec.push(func_wrap!(rt, api::math::band)),
+                "bnot" => import_vec.push(func_wrap!(rt, api::math::bnot)),
+                "bor" => import_vec.push(func_wrap!(rt, api::math::bor)),
+                "bxor" => import_vec.push(func_wrap!(rt, api::math::bxor)),
+                "cos" => import_vec.push(func_wrap!(rt, api::math::cos)),
+                "flr" => import_vec.push(func_wrap!(rt, api::math::flr)),
+                "maxf" => import_vec.push(func_wrap!(rt, api::math::maxf)),
+                "max" => import_vec.push(func_wrap!(rt, api::math::max)),
+                "mid" => import_vec.push(func_wrap!(rt, api::math::mid)),
+                "min" => import_vec.push(func_wrap!(rt, api::math::min)),
+                "minf" => import_vec.push(func_wrap!(rt, api::math::minf)),
+                "rnd" => import_vec.push(func_wrap!(rt, api::math::rnd)),
+                "sgn" => import_vec.push(func_wrap!(rt, api::math::sgn)),
+                "shl" => import_vec.push(func_wrap!(rt, api::math::shl)),
+                "shr" => import_vec.push(func_wrap!(rt, api::math::shr)),
+                "sin" => import_vec.push(func_wrap!(rt, api::math::sin)),
+                "sqrt" => import_vec.push(func_wrap!(rt, api::math::sqrt)),
+                "sqrtf" => import_vec.push(func_wrap!(rt, api::math::sqrtf)),
+                "srand" => import_vec.push(func_wrap!(rt, api::math::srand)),
+
+                "exit" => import_vec.push(func_wrap!(rt, api::misc::exit)),
+                "save" => import_vec.push(func_wrap!(rt, api::misc::exit)),
+                "load" => import_vec.push(func_wrap!(rt, api::misc::load)),
+                "unload" => import_vec.push(func_wrap!(rt, api::misc::unload)),
+                _ => missing_import_vec.push(import.name().to_owned()),
+            }
+            println!("Attempting to import {}", import.name());
+        }
+
+        if missing_import_vec.len() != 0 {
+            panic!(format!(
+                "Missing {} imports: {:?}",
+                missing_import_vec.len(),
+                missing_import_vec
+            ).as_str());
+        }
+
+        rt.instance = Some(
             Instance::new(
-                &self.store.as_ref().unwrap(),
-                &self.module.as_ref().unwrap(),
-                api,
+                &rt.store.as_ref().unwrap(),
+                &rt.module.as_ref().unwrap(),
+                &import_vec[..],
             )
             .unwrap(),
         );
-        self.memory = self.instance.as_ref().unwrap().get_memory("memory");
-        if self.memory.is_none() {
+        rt.memory = rt.instance.as_ref().unwrap().get_memory("memory");
+        if rt.memory.is_none() {
             panic!("Memory region `memory` in cartridge not defined!");
         }
 
-        if self.memory.as_ref().unwrap().data_size() > u32::MAX as usize {
+        if rt.memory.as_ref().unwrap().data_size() > u32::MAX as usize {
             panic!(
                 "Memory region `memory` is {:#X} pages which is above the maximum size of {:#X}",
-                self.memory.as_ref().unwrap().size(),
+                rt.memory.as_ref().unwrap().size(),
                 (u32::MAX / 64000)
             );
         }
 
-        self.init = Some(
-            self.instance
+        rt.init = Some(
+            rt.instance
                 .as_ref()
                 .unwrap()
                 .get_func("_init")
                 .expect("`_init` was not an exported function"),
         );
-        self.update = Some(
-            self.instance
+        rt.update = Some(
+            rt.instance
                 .as_ref()
                 .unwrap()
                 .get_func("_update")
                 .expect("`_update` was not an exported function"),
         );
-        self.draw = Some(
-            self.instance
+        rt.draw = Some(
+            rt.instance
                 .as_ref()
                 .unwrap()
                 .get_func("_draw")
                 .expect("`_draw` was not an exported function"),
         );
+
+        rt
+    }
+
+    pub fn update_api(&mut self) {
+        
     }
 }
 
