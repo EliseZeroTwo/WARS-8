@@ -1,5 +1,4 @@
 extern crate directories;
-extern crate font8x8;
 #[macro_use]
 extern crate lazy_static;
 extern crate rand;
@@ -10,6 +9,7 @@ extern crate wasmtime;
 
 mod cart;
 mod config;
+mod font;
 mod palette;
 mod runtime;
 mod utils;
@@ -18,14 +18,12 @@ mod utils;
 mod api;
 
 use crate::cart::Cart;
-use crate::cart::{wasm_binary::WasmBinary, wars_8_binary::Wars8Binary};
 use crate::config::Config;
 use crate::palette::ColorPallete;
-use crate::runtime::wasm_runtime::WasmRuntime;
 use crate::runtime::*;
 use crate::utils::*;
 use rand_pcg::Pcg64Mcg;
-use sdl2::event::Event;
+use sdl2::{event::{Event, WindowEvent}, rect::Rect};
 use sdl2::keyboard::Scancode;
 use sdl2::pixels::Color;
 use sdl2::pixels::PixelFormatEnum;
@@ -33,8 +31,10 @@ use std::collections::HashSet;
 use std::convert::From;
 use std::sync::Mutex;
 
-const WIDTH: i32 = 256;
-const HEIGHT: i32 = 256;
+const WINDOW_WIDTH: i32 = 512;
+const WINDOW_HEIGHT: i32 = 512;
+const WIDTH: i32 = 128;
+const HEIGHT: i32 = 128;
 const TARGET_FPS: f32 = 30.0;
 const FRAME_LEN_MS: u32 = ((1.0 / TARGET_FPS) * 1000.0) as u32;
 
@@ -80,11 +80,15 @@ fn main() {
     let window = sdl_ctx
         .video()
         .unwrap()
-        .window("WARS-8", WIDTH as u32, HEIGHT as u32)
+        .window("WARS-8", WINDOW_WIDTH as u32, WINDOW_HEIGHT as u32)
+        .resizable()
         .position_centered()
         .build()
         .unwrap();
-    let mut canvas = window.into_canvas().build().unwrap();
+
+    let mut out_win_rect = Rect::new(0, 0, WINDOW_WIDTH as u32, WINDOW_HEIGHT as u32);
+
+    let mut canvas = window.into_canvas().accelerated().build().unwrap();
     let texture_creator = canvas.texture_creator();
     let mut texture = texture_creator
         .create_texture_streaming(PixelFormatEnum::RGBX8888, WIDTH as u32, HEIGHT as u32)
@@ -172,6 +176,17 @@ fn main() {
                     keystate_held.remove(&kc);
                 }
 
+                Event::Window {
+                    win_event, ..
+                } => {
+                    if let WindowEvent::Resized(new_x, new_y) = win_event {
+                        let screen_size_scaled = new_x.min(new_y);
+                        let x = (((new_x - screen_size_scaled) >> 1) << 1) / 2;
+                        let y = (((new_y - screen_size_scaled) >> 1) << 1) / 2;
+                        out_win_rect = Rect::new(x, y, screen_size_scaled as u32, screen_size_scaled as u32);
+                    }
+                }
+
                 _ => {}
             }
         }
@@ -194,7 +209,8 @@ fn main() {
         })
         .unwrap();
 
-        canvas.copy(&texture, None, None).unwrap();
+        canvas.clear();
+        canvas.copy(&texture, None,Some(out_win_rect)).unwrap();
         canvas.present();
 
         let frame_difference = target_ms as i32 - sdl_ctx.timer().unwrap().ticks() as i32;

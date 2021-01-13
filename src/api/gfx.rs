@@ -2,8 +2,7 @@ use crate::{
     runtime::wasm_runtime::WasmCallerWrapper, utils::read_cstr, ColorPallete, TerminalLocation,
     HEIGHT, PXBUF_MUTEX, WIDTH,
 };
-use font8x8::BASIC_UNICODE;
-use wasmtime::*;
+use crate::font::FONT;
 
 pub fn pset(x: i32, y: i32, color: i32) {
     let idx = usize::from(TerminalLocation(x, y));
@@ -16,7 +15,7 @@ pub fn pset(x: i32, y: i32, color: i32) {
 
 pub fn pget(x: i32, y: i32) -> i32 {
     let idx = usize::from(TerminalLocation(x, y));
-    if idx >= (WIDTH * HEIGHT) as usize || x < 0 || x > 255 || y < 0 || y > 255  {
+    if idx >= (WIDTH * HEIGHT) as usize || x < 0 || x >= WIDTH || y < 0 || y >= HEIGHT  {
         panic!(format!("Invalid pget coordinates X={}, Y={}", x, y));
     }
 
@@ -26,7 +25,7 @@ pub fn pget(x: i32, y: i32) -> i32 {
 pub fn rect(x0: i32, y0: i32, x1: i32, y1: i32, color: i32) {
     let mut fb = PXBUF_MUTEX.lock().unwrap();
 
-    if  x0 < 0 || x0 > 255 || y0 < 0 || y0 > 255 || x1 < 0 || x1 > 255 || y1 < 0 || y1 > 255  {
+    if  x0 < 0 || x0 >= WIDTH || y0 < 0 || y0 >= HEIGHT || x1 < 0 || x1 >= WIDTH || y1 < 0 || y1 >= HEIGHT  {
         panic!(format!("Invalid rect coordinates X0={}, Y0={}, X1={}, Y1={}", x0, y1, x1, y1));
     }
 
@@ -44,7 +43,7 @@ pub fn rect(x0: i32, y0: i32, x1: i32, y1: i32, color: i32) {
 pub fn rectfill(x0: i32, y0: i32, x1: i32, y1: i32, color: i32) {
     let mut fb = PXBUF_MUTEX.lock().unwrap();
     
-    if  x0 < 0 || x0 > 255 || y0 < 0 || y0 > 255 || x1 < 0 || x1 > 255 || y1 < 0 || y1 > 255  {
+    if  x0 < 0 || x0 >= WIDTH || y0 < 0 || y0 >= HEIGHT || x1 < 0 || x1 >= WIDTH || y1 < 0 || y1 >= HEIGHT  {
         panic!(format!("Invalid rectfill coordinates X0={}, Y0={}, X1={}, Y1={}", x0, y1, x1, y1));
     }
 
@@ -59,56 +58,27 @@ pub fn cls(color: i32) {
     rectfill(0, 0, WIDTH - 1, HEIGHT - 1, color);
 }
 
-pub fn putc(c: u8, x: i32, y: i32, col: i32) {
-    if (c as usize) < BASIC_UNICODE.len() {
-        let color = ColorPallete::from(col);
-        let mut pxbuf_lock = PXBUF_MUTEX.lock().unwrap();
-        let font = BASIC_UNICODE[c as usize];
-        for row_offset in 0..8 {
-            let row = font.byte_array()[row_offset];
-            for bit in 0..8 {
-                if (row >> (7 - bit)) & 1 == 1 {
-                    for y_scale in 0..2 {
-                        for x_scale in 0..2 {
-                            let loc = TerminalLocation(
-                                x + (bit * 2) as i32 + x_scale,
-                                y + (row_offset * 2) as i32 + y_scale,
-                            );
-                            pxbuf_lock[usize::from(loc)] = color;
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
 pub fn print(string: String, x: i32, y: i32, col: i32) {
     let color = ColorPallete::from(col);
+    let string = string.to_ascii_uppercase();
     let mut pxbuf_lock = PXBUF_MUTEX.lock().unwrap();
     unsafe {
         let mut offset = 0;
-        for ch in string.as_bytes() {
-            if offset >= 32 {
-                break;
+        for ch in string.chars().collect::<Vec<char>>() {
+            if x + (offset * 4) + 3 > 127 || x + (offset * 4) + 3 < 0 || y - 6 < 0 || y > 127 {
+                return;
             }
 
-            let char = *ch;
-            if (char as usize) < BASIC_UNICODE.len() {
-                let font = BASIC_UNICODE[char as usize];
-                for row_offset in 0u8..8 {
-                    let row = font.byte_array()[row_offset as usize];
-                    for bit in 0u8..8 {
-                        if (row >> bit) & 1 == 1 {
-                            for y_scale in 0..1 {
-                                for x_scale in 0..1 {
-                                    let loc = TerminalLocation(
-                                        x + (offset * 8) + (bit * 1) as i32 + x_scale,
-                                        y + (row_offset * 1) as i32 + y_scale,
-                                    );
-                                    pxbuf_lock[usize::from(loc)] = color;
-                                }
-                            }
+            if let Some(font) = FONT.get(&ch) {
+                for row_offset in 0..6 {
+                    let row = font[5 - row_offset];
+                    for col_idx in 0..4 {
+                        if row[col_idx] {
+                                let loc = TerminalLocation(
+                                    x + (offset * 4) + col_idx as i32,
+                                    y - row_offset as i32,
+                                );
+                                pxbuf_lock[usize::from(loc)] = color;
                         }
                     }
                 }

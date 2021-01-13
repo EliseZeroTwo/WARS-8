@@ -47,11 +47,11 @@ impl LuaRuntime {
 
         // Input
         lua.globals().set("btn", lua.create_function(|_, args: (i32, i32)| {
-            Ok(api::input::btn(args.0, args.1))
+            Ok(api::input::btn(args.0, args.1) != 0)
         }).unwrap()).unwrap();
 
         lua.globals().set("btnp", lua.create_function(|_, args: (i32, i32)| {
-            Ok(api::input::btnp(args.0, args.1))
+            Ok(api::input::btnp(args.0, args.1) != 0)
         }).unwrap()).unwrap();
 
         lua.globals().set("key", lua.create_function(|_, _: ()| {

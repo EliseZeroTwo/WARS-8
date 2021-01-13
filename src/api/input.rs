@@ -11,13 +11,13 @@ pub fn key() -> i32 {
 }
 pub fn btn(i: i32, p: i32) -> i32 {
     let keystate_held = KEYSTATE_HELD.lock().unwrap();
-    if p != 1 && p != 2 {
+    if p != 0 && p != 1 {
         panic!("Invalid player number {}", p);
     }
 
     let config = CONFIG.lock().unwrap();
     let keycode;
-    if p == 1 {
+    if p == 0 {
         keycode = match i {
             0 => config.keys.player1.left,
             1 => config.keys.player1.right,
@@ -43,13 +43,13 @@ pub fn btn(i: i32, p: i32) -> i32 {
 }
 pub fn btnp(i: i32, p: i32) -> i32 {
     let keystate_frame = KEYSTATE_FRAME.lock().unwrap();
-    if p != 1 && p != 2 {
+    if p != 0 && p != 1 {
         panic!("Invalid player number {}", p);
     }
 
     let config = CONFIG.lock().unwrap();
     let keycode;
-    if p == 1 {
+    if p == 0 {
         keycode = match i {
             0 => config.keys.player1.left,
             1 => config.keys.player1.right,
