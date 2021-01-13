@@ -62,8 +62,16 @@ pub fn mid(x: i32, y: i32, z: i32) -> i32 {
     (x + y + z) - min(min(x, y), z) - max(max(x, y), z)
 }
 
+pub fn midf(x: f32, y: f32, z: f32) -> f32 {
+    (x + y + z) - minf(minf(x, y), z) - maxf(maxf(x, y), z)
+}
+
 pub fn rnd(x: i32) -> i32 {
     RAND_SRC.lock().unwrap().gen::<i32>() % x
+}
+
+pub fn rndf(x: f32) -> f32 {
+    RAND_SRC.lock().unwrap().gen::<f32>() % x
 }
 
 pub fn srand(x: i32) {
@@ -74,6 +82,14 @@ pub fn srand(x: i32) {
 
 pub fn sgn(x: i32) -> i32 {
     if x < 0 {
+        -1
+    } else {
+        1
+    }
+}
+
+pub fn sgnf(x: f32) -> i32 {
+    if x < 0.0 {
         -1
     } else {
         1

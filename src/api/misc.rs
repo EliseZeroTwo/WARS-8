@@ -22,10 +22,8 @@ pub fn unload() {
     *CART.lock().unwrap() = None;
 }
 
-pub fn load(caller: Caller, string_addr: i32) {
-    let caller_wrapper = WasmCallerWrapper::new(caller);
-    let mut str = read_cstr(&caller_wrapper, string_addr);
-    str = str.replace("..", "");
+pub fn load(str: String) {
+    let str = str.replace("..", "");
     let path = std::path::Path::new(&Config::get_config_dir_or_create().unwrap()).join(str);
     if !path.is_file() {
         panic!("{} is not a file!", path.to_str().unwrap().to_string());

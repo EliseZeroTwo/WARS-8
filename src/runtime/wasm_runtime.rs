@@ -1,4 +1,4 @@
-use crate::api;
+use crate::{api, utils::read_cstr};
 
 use core::panic;
 use std::{u32, usize};
@@ -61,6 +61,20 @@ pub struct WasmRuntime {
 }
 
 impl WasmRuntime {
+    fn print(caller: Caller, string_addr: i32, x: i32, y: i32, col: i32) {
+        api::gfx::print(read_cstr(&WasmCallerWrapper::new(caller), string_addr), x, y, col);
+    }
+
+    fn printh(caller: Caller, string_addr: i32) {
+        api::gfx::printh(read_cstr(&WasmCallerWrapper::new(caller), string_addr));
+    }
+
+    fn load(caller: Caller, string_addr: i32) {
+        let caller_wrapper = WasmCallerWrapper::new(caller);
+        let str = read_cstr(&caller_wrapper, string_addr);
+        api::misc::load(str);
+    }
+
     pub fn new(binary: &[u8]) -> WasmRuntime {
         let mut rt = WasmRuntime {
             engine: Engine::new(Config::new().interruptable(true)),
@@ -89,8 +103,8 @@ impl WasmRuntime {
                 "rectfill" => import_vec.push(func_wrap!(rt, api::gfx::rectfill)),
                 "pget" => import_vec.push(func_wrap!(rt, api::gfx::pget)),
                 "pset" => import_vec.push(func_wrap!(rt, api::gfx::pset)),
-                "print" => import_vec.push(func_wrap!(rt, api::gfx::print)),
-                "printh" => import_vec.push(func_wrap!(rt, api::gfx::printh)),
+                "print" => import_vec.push(func_wrap!(rt, WasmRuntime::print)),
+                "printh" => import_vec.push(func_wrap!(rt, WasmRuntime::printh)),
                 
                 "btn" => import_vec.push(func_wrap!(rt, api::input::btn)),
                 "btnp" => import_vec.push(func_wrap!(rt, api::input::btnp)),
@@ -120,7 +134,7 @@ impl WasmRuntime {
 
                 "exit" => import_vec.push(func_wrap!(rt, api::misc::exit)),
                 "save" => import_vec.push(func_wrap!(rt, api::misc::exit)),
-                "load" => import_vec.push(func_wrap!(rt, api::misc::load)),
+                "load" => import_vec.push(func_wrap!(rt, WasmRuntime::load)),
                 "unload" => import_vec.push(func_wrap!(rt, api::misc::unload)),
                 _ => missing_import_vec.push(import.name().to_owned()),
             }
@@ -180,41 +194,9 @@ impl WasmRuntime {
 
         rt
     }
-
-    pub fn update_api(&mut self) {
-        
-    }
 }
 
 impl Runtime for WasmRuntime {
-    fn peek(&mut self, addr: u32) -> u8 {
-        if addr as usize > self.memory.as_ref().unwrap().data_size() {
-            unsafe {
-                return self.memory.as_ref().unwrap().data_unchecked()[addr as usize];
-            }
-        }
-        panic!(
-            "Attempted to read from {:#X} which is outside of memory bounds of {:#X}",
-            addr,
-            self.memory.as_ref().unwrap().data_size()
-        );
-    }
-
-    fn poke(&mut self, addr: u32, val: u8) {
-        if addr as usize > self.memory.as_ref().unwrap().data_size() {
-            unsafe {
-                self.memory.as_ref().unwrap().data_unchecked_mut()[addr as usize] = val;
-            }
-        } else {
-            panic!(
-                "Attempted to write {:#X} to {:#X} which is outside of memory bounds of {:#X}",
-                val,
-                addr,
-                self.memory.as_ref().unwrap().data_size()
-            );
-        }
-    }
-
     fn init(&mut self) {
         self.init.as_ref().unwrap().get0::<()>().unwrap()().unwrap();
     }

@@ -93,8 +93,9 @@ fn main() {
 
     let mut cart_pre_mutex = CART.lock().unwrap();
     *cart_pre_mutex =  Some(Cart::load(&boot_cart_path));
-    let mut runtime = WasmRuntime::new(cart_pre_mutex.as_deref().unwrap().binary());
+    let mut runtime = cart_pre_mutex.as_deref().unwrap().create_runtime();
     drop(cart_pre_mutex);
+    
     runtime.init();
 
     let mut target_ms = sdl_ctx.timer().unwrap().ticks() + FRAME_LEN_MS;
@@ -110,7 +111,8 @@ fn main() {
                 println!("Resetting to boot cartridge");
                 *cart_mutex = Some(Cart::load(&boot_cart_path));
             }
-            runtime = WasmRuntime::new(cart_mutex.as_deref().unwrap().binary());
+            runtime = cart_mutex.as_deref().unwrap().create_runtime();
+
             let mut framebuffer = PXBUF_MUTEX.lock().unwrap();
             for idx in 0..framebuffer.len() {
                 framebuffer[idx] = ColorPallete::Black;
@@ -191,6 +193,9 @@ fn main() {
             }
         })
         .unwrap();
+
+        canvas.copy(&texture, None, None).unwrap();
+        canvas.present();
 
         let frame_difference = target_ms as i32 - sdl_ctx.timer().unwrap().ticks() as i32;
         target_ms += FRAME_LEN_MS;

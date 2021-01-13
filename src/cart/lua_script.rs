@@ -1,13 +1,16 @@
-use crate::{cart::Cart, runtime::{Runtime, wasm_runtime::WasmRuntime}};
-use crate::palette::ColorPallete;
 use std::fs;
 
-pub struct WasmBinary {
+use crate::runtime::lua_runtime::LuaRuntime;
+
+use super::Cart;
+
+pub struct LuaScript {
+    path: String,
     name: String,
-    binary: Vec<u8>,
+    script: Vec<u8>,
 }
 
-impl WasmBinary {
+impl LuaScript {
     pub fn new(path: &String) -> Self {
         let metadata = match fs::metadata(&path) {
             Ok(md) => md,
@@ -31,32 +34,33 @@ impl WasmBinary {
             },
         };
 
-        let binary = match fs::read(&path) {
+        let script = match fs::read(&path) {
             Ok(bin) => bin,
             Err(why) => panic!("Unable to read {}, reason: {}", path, why),
         };
 
-        WasmBinary {
+        LuaScript {
+            path: path.clone(),
             name,
-            binary
+            script,
         }
     }
 }
 
-impl Cart for WasmBinary {
+impl Cart for LuaScript {
     fn name(&self) -> String {
         self.name.clone()
     }
 
     fn size(&self) -> u32 {
-        self.binary().len() as u32
+        self.script.len() as u32
     }
 
     fn binary(&self) -> &[u8] {
-        &self.binary
+        &self.script[..]
     }
 
-    fn get_sprite(&self, idx: i32) -> Option<[[ColorPallete; 8]; 8]> {
+    fn get_sprite(&self, idx: i32) -> Option<[[crate::palette::ColorPallete; 8]; 8]> {
         None
     }
 
@@ -65,10 +69,13 @@ impl Cart for WasmBinary {
     }
 
     fn save(&self) -> Result<(), ()> {
-        Ok(())
+        match std::fs::write(&self.path, &self.script) {
+            Ok(_) => Ok(()),
+            Err(_) => Err(()),
+        }
     }
 
-    fn create_runtime(&self) -> Box<dyn Runtime> {
-        Box::new(WasmRuntime::new(self.binary()))
+    fn create_runtime(&self) -> Box<dyn crate::runtime::Runtime> {
+        Box::new(LuaRuntime::new(&self.script[..]))
     }
 }

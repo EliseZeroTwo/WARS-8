@@ -1,5 +1,5 @@
 use byteorder::{BigEndian, LittleEndian, ReadBytesExt, WriteBytesExt};
-use crate::cart::Cart;
+use crate::{cart::Cart, runtime::{Runtime, wasm_runtime::WasmRuntime}};
 use crate::palette::ColorPallete;
 use std::fs;
 use std::io::Cursor;
@@ -177,5 +177,9 @@ impl Cart for Wars8Binary {
         fs::write(&self.path, out_buf);
     
         Ok(())
+    }
+
+    fn create_runtime(&self) -> Box<dyn Runtime> {
+        Box::new(WasmRuntime::new(self.binary()))
     }
 }

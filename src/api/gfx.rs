@@ -83,14 +83,12 @@ pub fn putc(c: u8, x: i32, y: i32, col: i32) {
     }
 }
 
-pub fn print(caller: Caller, string_addr: i32, x: i32, y: i32, col: i32) {
+pub fn print(string: String, x: i32, y: i32, col: i32) {
     let color = ColorPallete::from(col);
-    let caller_wrapper = WasmCallerWrapper::new(caller);
     let mut pxbuf_lock = PXBUF_MUTEX.lock().unwrap();
     unsafe {
-        let str = read_cstr(&caller_wrapper, string_addr);
         let mut offset = 0;
-        for ch in str.as_bytes() {
+        for ch in string.as_bytes() {
             if offset >= 32 {
                 break;
             }
@@ -120,9 +118,9 @@ pub fn print(caller: Caller, string_addr: i32, x: i32, y: i32, col: i32) {
     }
 }
 
-pub fn printh(caller: Caller, string_addr: i32) {
+pub fn printh(str: String) {
     println!(
         "{}",
-        read_cstr(&WasmCallerWrapper::new(caller), string_addr)
+        str
     );
 }
