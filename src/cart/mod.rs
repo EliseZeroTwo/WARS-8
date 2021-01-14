@@ -1,13 +1,13 @@
 pub mod lua_script;
-pub mod wasm_binary;
 pub mod wars_8_binary;
+pub mod wasm_binary;
 
 use lua_script::LuaScript;
 
-use crate::{CART, runtime::Runtime};
 use crate::palette::ColorPallete;
+use crate::{runtime::Runtime, CART};
 
-use self::{wasm_binary::WasmBinary, wars_8_binary::Wars8Binary};
+use self::{wars_8_binary::Wars8Binary, wasm_binary::WasmBinary};
 pub trait Cart: Send + Sync {
     fn name(&self) -> String;
     fn size(&self) -> u32;
@@ -24,18 +24,11 @@ impl dyn Cart {
             Some(idx) => path[(idx + 1)..].to_string(),
             None => String::new(),
         };
-    
-    
+
         match ext.to_lowercase().as_str() {
-            "wasm" => {
-                Box::new(WasmBinary::new(&path))
-            },
-            "rs8" => {
-                Box::new(Wars8Binary::new(&path))
-            },
-            "lua" => {
-                Box::new(LuaScript::new(&path))
-            },
+            "wasm" => Box::new(WasmBinary::new(&path)),
+            "rs8" => Box::new(Wars8Binary::new(&path)),
+            "lua" => Box::new(LuaScript::new(&path)),
             _ => panic!("Unknown format: {}", ext),
         }
     }

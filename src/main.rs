@@ -23,10 +23,13 @@ use crate::palette::ColorPallete;
 use crate::runtime::*;
 use crate::utils::*;
 use rand_pcg::Pcg64Mcg;
-use sdl2::{event::{Event, WindowEvent}, rect::Rect};
 use sdl2::keyboard::Scancode;
 use sdl2::pixels::Color;
 use sdl2::pixels::PixelFormatEnum;
+use sdl2::{
+    event::{Event, WindowEvent},
+    rect::Rect,
+};
 use std::collections::HashSet;
 use std::convert::From;
 use std::sync::Mutex;
@@ -47,6 +50,12 @@ impl From<TerminalLocation> for usize {
     }
 }
 
+impl TerminalLocation {
+    fn is_valid(&self) -> bool {
+        self.0 >= 0 && self.1 >= 0 && self.0 < WIDTH && self.1 < HEIGHT
+    }
+}
+
 lazy_static! {
     static ref PXBUF_MUTEX: Mutex<[ColorPallete; (WIDTH * HEIGHT) as usize]> =
         Mutex::new([ColorPallete::Black; (WIDTH * HEIGHT) as usize]);
@@ -62,10 +71,15 @@ lazy_static! {
 fn main() {
     let mut boot_cart_path;
     if std::env::args().len() == 1 {
-        let path_obj = std::path::Path::new(&Config::get_config_dir_or_create().unwrap()).join("boot.wasm");
+        let path_obj =
+            std::path::Path::new(&Config::get_config_dir_or_create().unwrap()).join("boot.wasm");
         boot_cart_path = path_obj.to_str().unwrap().to_string();
         if !path_obj.is_file() {
-            println!("Usage: `{} <binary>`, or place a binary at `{}`", std::env::args().next().unwrap(), boot_cart_path);
+            println!(
+                "Usage: `{} <binary>`, or place a binary at `{}`",
+                std::env::args().next().unwrap(),
+                boot_cart_path
+            );
             std::process::exit(1);
         }
     } else {
@@ -74,7 +88,7 @@ fn main() {
             boot_cart_path = x;
         }
     }
-    
+
     // Setup SDL
     let sdl_ctx = sdl2::init().unwrap();
     let window = sdl_ctx
@@ -94,12 +108,11 @@ fn main() {
         .create_texture_streaming(PixelFormatEnum::RGBX8888, WIDTH as u32, HEIGHT as u32)
         .unwrap();
 
-
     let mut cart_pre_mutex = CART.lock().unwrap();
-    *cart_pre_mutex =  Some(Cart::load(&boot_cart_path));
+    *cart_pre_mutex = Some(Cart::load(&boot_cart_path));
     let mut runtime = cart_pre_mutex.as_deref().unwrap().create_runtime();
     drop(cart_pre_mutex);
-    
+
     runtime.init();
 
     let mut target_ms = sdl_ctx.timer().unwrap().ticks() + FRAME_LEN_MS;
@@ -134,10 +147,10 @@ fn main() {
         let mut keystate_frame = KEYSTATE_FRAME.lock().unwrap();
         let mut keystate_frame_fifo = KEYSTATE_FRAME_FIFO.lock().unwrap();
         let mut keystate_held = KEYSTATE_HELD.lock().unwrap();
-        
+
         keystate_frame.clear();
         keystate_frame_fifo.clear();
-        
+
         for event in sdl_ctx.event_pump().unwrap().poll_iter() {
             match event {
                 Event::Quit { .. } => {
@@ -176,14 +189,13 @@ fn main() {
                     keystate_held.remove(&kc);
                 }
 
-                Event::Window {
-                    win_event, ..
-                } => {
+                Event::Window { win_event, .. } => {
                     if let WindowEvent::Resized(new_x, new_y) = win_event {
                         let screen_size_scaled = new_x.min(new_y);
                         let x = (((new_x - screen_size_scaled) >> 1) << 1) / 2;
                         let y = (((new_y - screen_size_scaled) >> 1) << 1) / 2;
-                        out_win_rect = Rect::new(x, y, screen_size_scaled as u32, screen_size_scaled as u32);
+                        out_win_rect =
+                            Rect::new(x, y, screen_size_scaled as u32, screen_size_scaled as u32);
                     }
                 }
 
@@ -197,20 +209,20 @@ fn main() {
         drop(keystate_frame_fifo);
 
         texture
-        .with_lock(None, |buffer: &mut [u8], _pitch: usize| {
-            let framebuffer = PXBUF_MUTEX.lock().unwrap();
-            for idx in 0..framebuffer.len() {
-                let raw_idx = idx * 4;
-                let color = Color::from(framebuffer[idx]);
-                buffer[raw_idx + 1] = color.b;
-                buffer[raw_idx + 2] = color.g;
-                buffer[raw_idx + 3] = color.r;
-            }
-        })
-        .unwrap();
+            .with_lock(None, |buffer: &mut [u8], _pitch: usize| {
+                let framebuffer = PXBUF_MUTEX.lock().unwrap();
+                for idx in 0..framebuffer.len() {
+                    let raw_idx = idx * 4;
+                    let color = Color::from(framebuffer[idx]);
+                    buffer[raw_idx + 1] = color.b;
+                    buffer[raw_idx + 2] = color.g;
+                    buffer[raw_idx + 3] = color.r;
+                }
+            })
+            .unwrap();
 
         canvas.clear();
-        canvas.copy(&texture, None,Some(out_win_rect)).unwrap();
+        canvas.copy(&texture, None, Some(out_win_rect)).unwrap();
         canvas.present();
 
         let frame_difference = target_ms as i32 - sdl_ctx.timer().unwrap().ticks() as i32;

@@ -70,7 +70,7 @@ impl Config {
     }
 
     pub fn get_config_dir_or_create() -> Option<String> {
-        match  ProjectDirs::from("services", "headpat", "WARS-8") {
+        match ProjectDirs::from("services", "headpat", "WARS-8") {
             Some(proj_dirs) => {
                 let config_dir = proj_dirs.config_dir();
                 if !config_dir.exists() {
@@ -78,12 +78,12 @@ impl Config {
                         panic!("Not able to create config directory! Reason: {}", why);
                     }
                 }
-                
+
                 match config_dir.to_str() {
                     Some(path) => Some(path.to_string()),
-                    None=> None,
+                    None => None,
                 }
-            },
+            }
             None => None,
         }
     }
@@ -94,7 +94,7 @@ impl Config {
             Some(ps) => ps,
             None => "./wars8".to_string(),
         };
-        
+
         let path = std::path::Path::new(&path_str);
 
         let path = path.join("config.json");

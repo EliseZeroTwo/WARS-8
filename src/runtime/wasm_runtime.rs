@@ -62,7 +62,12 @@ pub struct WasmRuntime {
 
 impl WasmRuntime {
     fn print(caller: Caller, string_addr: i32, x: i32, y: i32, col: i32) {
-        api::gfx::print(read_cstr(&WasmCallerWrapper::new(caller), string_addr), x, y, col);
+        api::gfx::print(
+            read_cstr(&WasmCallerWrapper::new(caller), string_addr),
+            x,
+            y,
+            col,
+        );
     }
 
     fn printh(caller: Caller, string_addr: i32) {
@@ -105,7 +110,8 @@ impl WasmRuntime {
                 "pset" => import_vec.push(func_wrap!(rt, api::gfx::pset)),
                 "print" => import_vec.push(func_wrap!(rt, WasmRuntime::print)),
                 "printh" => import_vec.push(func_wrap!(rt, WasmRuntime::printh)),
-                
+                "spr" => import_vec.push(func_wrap!(rt, api::gfx::spr)),
+
                 "btn" => import_vec.push(func_wrap!(rt, api::input::btn)),
                 "btnp" => import_vec.push(func_wrap!(rt, api::input::btnp)),
                 "key" => import_vec.push(func_wrap!(rt, api::input::key)),
@@ -146,7 +152,8 @@ impl WasmRuntime {
                 "Missing {} imports: {:?}",
                 missing_import_vec.len(),
                 missing_import_vec
-            ).as_str());
+            )
+            .as_str());
         }
 
         rt.instance = Some(

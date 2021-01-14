@@ -1,5 +1,6 @@
 use std::fs;
 
+use crate::palette::ColorPallete;
 use crate::runtime::lua_runtime::LuaRuntime;
 
 use super::Cart;
@@ -22,16 +23,18 @@ impl LuaScript {
         }
 
         if metadata.len() >= u32::MAX as u64 {
-            panic!("{} is {} bytes too big! (total: {}, limit {})", path, metadata.len() - u32::MAX as u64, metadata.len(), u32::MAX);
+            panic!(
+                "{} is {} bytes too big! (total: {}, limit {})",
+                path,
+                metadata.len() - u32::MAX as u64,
+                metadata.len(),
+                u32::MAX
+            );
         }
 
         let name: String = match path.rfind('/') {
-            Some(pos) => {
-                (path[(pos + 1)..]).to_string()
-            },
-            None => {
-                path.clone()
-            },
+            Some(pos) => (path[(pos + 1)..]).to_string(),
+            None => path.clone(),
         };
 
         let script = match fs::read(&path) {

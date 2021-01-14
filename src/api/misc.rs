@@ -1,6 +1,9 @@
 use wasmtime::Caller;
 
-use crate::{CART, CART_TO_LOAD, cart::Cart, config::Config, runtime::wasm_runtime::WasmCallerWrapper, utils::read_cstr};
+use crate::{
+    cart::Cart, config::Config, runtime::wasm_runtime::WasmCallerWrapper, utils::read_cstr, CART,
+    CART_TO_LOAD,
+};
 
 pub fn exit() {
     std::process::exit(0); // lol
@@ -8,11 +11,9 @@ pub fn exit() {
 
 pub fn save() -> i32 {
     match CART.lock().unwrap().as_ref() {
-        Some(boxed_cart) => {
-            match boxed_cart.save() {
-                Ok(_) => 1,
-                Err(_) => 0,
-            }
+        Some(boxed_cart) => match boxed_cart.save() {
+            Ok(_) => 1,
+            Err(_) => 0,
         },
         None => 0,
     }
