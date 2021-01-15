@@ -67,6 +67,10 @@ impl Cart for LuaScript {
         None
     }
 
+    fn get_spritesheet(&self) -> [i32; 128*32] {
+        [0; 128 * 32]
+    }
+
     fn get_map_cell(&self, cellx: i32, celly: i32) -> u8 {
         0
     }

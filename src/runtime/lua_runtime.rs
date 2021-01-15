@@ -1,6 +1,6 @@
-use mlua::{Function, Lua};
+use mlua::{Function, Lua, Table};
 
-use crate::api;
+use crate::{api, DRAW_STATE, palette::ColorPallete};
 use crate::runtime::Runtime;
 pub struct LuaRuntime {
     lua: Lua,
@@ -14,8 +14,8 @@ impl LuaRuntime {
         lua.globals()
             .set(
                 "cls",
-                lua.create_function(|_, color: i32| {
-                    api::gfx::cls(color);
+                lua.create_function(|_, color: Option<i32>| {
+                    api::gfx::cls(color.unwrap_or(i32::from(DRAW_STATE.lock().unwrap().pen_color)));
                     Ok(())
                 })
                 .unwrap(),
@@ -88,23 +88,44 @@ impl LuaRuntime {
         lua.globals()
             .set(
                 "spr",
-                lua.create_function(|_, (idx, x, y, w, h, flip_x, flip_y)| {
-                    let flip_x = match flip_x {
+                lua.create_function(|_, (idx, x, y, w, h, flip_x, flip_y): (i32, i32, i32, Option<f32>, Option<f32>, Option<bool>, Option<bool>)| {
+                    let flip_x = match flip_x.unwrap_or(false) {
                         false => 0,
                         true => 1,
                     };
 
-                    let flip_y = match flip_y {
+                    let flip_y = match flip_y.unwrap_or(false) {
                         false => 0,
                         true => 1,
                     };
 
-                    api::gfx::spr(idx, x, y, w, h, flip_x, flip_y);
+                    api::gfx::spr(idx, x, y, w.unwrap_or(1.0), h.unwrap_or(1.0), flip_x, flip_y);
                     Ok(())
                 })
                 .unwrap(),
             )
             .unwrap();
+
+        lua.globals()
+        .set(
+            "sspr",
+            lua.create_function(|_, (sx, sy, sw, sh, dx, dy, dw, dh, flip_x, flip_y): (i32, i32, i32, i32, i32, i32, Option<i32>, Option<i32>, Option<bool>, Option<bool>)| {
+                let flip_x = match flip_x.unwrap_or(false) {
+                    false => 0,
+                    true => 1,
+                };
+
+                let flip_y = match flip_y.unwrap_or(false) {
+                    false => 0,
+                    true => 1,
+                };
+
+                api::gfx::sspr(sx, sy, sw, sh, dx, dy, dw.unwrap_or(1), dh.unwrap_or(1), flip_x, flip_y);
+                Ok(())
+            })
+            .unwrap(),
+        )
+        .unwrap();
 
         // Input
         lua.globals()
@@ -115,15 +136,18 @@ impl LuaRuntime {
             )
             .unwrap();
 
+
         lua.globals()
             .set(
                 "btnp",
                 lua.create_function(
-                    |_, args: (i32, i32)| Ok(api::input::btnp(args.0, args.1) != 0),
+                    |_, args: (i32, Option<i32>)| Ok(api::input::btnp(args.0, args.1.unwrap_or(0)) != 0),
                 )
                 .unwrap(),
             )
             .unwrap();
+        
+        
 
         lua.globals()
             .set(
@@ -192,7 +216,7 @@ impl LuaRuntime {
 
         lua.globals()
             .set(
-                "flt",
+                "flr",
                 lua.create_function(|_, x: f32| Ok(api::math::flr(x)))
                     .unwrap(),
             )
@@ -319,6 +343,49 @@ impl LuaRuntime {
                 .unwrap(),
             )
             .unwrap();
+
+
+        // Lua specific string api
+
+        lua.globals()
+        .set(
+            "sub",
+            lua.create_function(|_, (str, start, end): (String, Option<u32>, Option<u32>)| {
+                Ok(str[start.unwrap_or(0) as usize..end.unwrap_or(str.len() as u32) as usize].to_string())
+            })
+            .unwrap(),
+        )
+        .unwrap();
+        
+        lua.globals()
+        .set(
+            "tostr",
+            lua.create_function(|_, (val, hex): (f32, Option<bool>)| {
+                let hex = hex.unwrap_or(false);
+                if hex {
+                    todo!();
+                } else {
+                    Ok(val.to_string())
+                }
+            })
+            .unwrap(),
+        )
+        .unwrap();
+
+        lua.globals()
+        .set(
+            "tonum",
+            lua.create_function(|_, val: String| {
+                Ok(val.parse::<f32>().unwrap_or(0.0))
+            })
+            .unwrap(),
+        )
+        .unwrap();
+
+
+        let x = script.iter().map(|f| *f as char).collect::<String>();
+        std::fs::write("./last.lua", x);
+
         lua.load(script).exec().unwrap();
 
         LuaRuntime { lua }

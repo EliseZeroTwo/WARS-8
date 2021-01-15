@@ -3,6 +3,7 @@ extern crate directories;
 extern crate lazy_static;
 extern crate rand;
 extern crate rand_pcg;
+extern crate regex;
 extern crate sdl2;
 extern crate serde_json;
 extern crate wasmtime;
@@ -56,6 +57,26 @@ impl TerminalLocation {
     }
 }
 
+pub struct DrawState {
+    pen_color: ColorPallete,
+    camera_position: (i32, i32),
+    cursor_pos: u32,
+    clip_region: (u32, u32, u32, u32),
+    fill_pattern: u16,
+}
+
+impl DrawState {
+    pub fn new() -> DrawState {
+        DrawState {
+            pen_color: ColorPallete::Black,
+            camera_position: (0, 0),
+            cursor_pos: 0,
+            clip_region: (0, 0, 127, 127),
+            fill_pattern: 0xFFFF,
+        }
+    }
+}
+
 lazy_static! {
     static ref PXBUF_MUTEX: Mutex<[ColorPallete; (WIDTH * HEIGHT) as usize]> =
         Mutex::new([ColorPallete::Black; (WIDTH * HEIGHT) as usize]);
@@ -66,6 +87,7 @@ lazy_static! {
     static ref RAND_SRC: Mutex<Pcg64Mcg> = Mutex::new(Pcg64Mcg::new(0xcafef00dbeefd34d));
     static ref CART: Mutex<Option<Box<dyn Cart>>> = Mutex::new(None);
     static ref CART_TO_LOAD: Mutex<bool> = Mutex::new(false);
+    static ref DRAW_STATE: Mutex<DrawState> = Mutex::new(DrawState::new());
 }
 
 fn main() {

@@ -1094,6 +1094,7 @@ dependencies = [
  "mlua",
  "rand",
  "rand_pcg",
+ "regex",
  "sdl2",
  "serde",
  "serde_json",

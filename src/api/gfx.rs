@@ -50,6 +50,7 @@ pub fn rect(x0: i32, y0: i32, x1: i32, y1: i32, color: i32) {
 }
 
 pub fn rectfill(x0: i32, y0: i32, x1: i32, y1: i32, color: i32) {
+
     let mut fb = PXBUF_MUTEX.lock().unwrap();
 
     for x in x0..=x1 {
@@ -75,12 +76,12 @@ pub fn print(string: String, x: i32, y: i32, col: i32) {
         for ch in string.chars().collect::<Vec<char>>() {
             if let Some(font) = FONT.get(&ch) {
                 for row_offset in 0..6 {
-                    let row = font[5 - row_offset];
+                    let row = font[row_offset];
                     for col_idx in 0..4 {
                         if row[col_idx] {
                             let loc = TerminalLocation(
                                 x + (offset * 4) + col_idx as i32,
-                                y - row_offset as i32,
+                                y + row_offset as i32,
                             );
                             if loc.is_valid() {
                                 pxbuf_lock[usize::from(loc)] = color;
@@ -133,4 +134,33 @@ pub fn spr(idx: i32, x: i32, y: i32, w: f32, h: f32, flip_x: i32, flip_y: i32) {
             }
         }
     }
+}
+
+pub fn sspr(sx: i32, sy: i32, sw: i32, sh: i32, dx: i32, dy: i32, dw: i32, dh: i32, flip_x: i32, flip_y: i32) {
+    let mut pxbuf_lock = PXBUF_MUTEX.lock().unwrap();
+    let cart_lock = crate::CART.lock().unwrap();
+    let cart = cart_lock.as_deref().unwrap();
+    let width_px = dw * 8;
+    let height_px = dh * 8;
+
+    let flip_x = flip_x != 0;
+    let flip_y = flip_y != 0;
+
+    let spritesheet = cart.get_spritesheet();
+    for row_offset in 0..sh {
+        for col_offset in 0..sw {
+            for y_str_offset in 0..dh {
+                for x_str_offset in 0..dw {
+                    let loc = TerminalLocation(
+                        dx + (col_offset * dw) + x_str_offset,
+                        dy + (row_offset * dh) + y_str_offset,
+                    );
+                    if loc.is_valid() {
+                        pxbuf_lock[usize::from(loc)] = ColorPallete::from(spritesheet[((row_offset * 128) + col_offset) as usize]);
+                    }
+                }
+            }
+        } 
+    }
+    
 }
