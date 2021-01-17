@@ -2,8 +2,8 @@ use std::sync::MutexGuard;
 
 use crate::{draw_state, font::FONT, get_map, set_map};
 use crate::{
-    get_pixel, get_sprite, get_sprite_flag, runtime::wasm_runtime::WasmCallerWrapper, set_pixel,
-    set_sprite_flag, utils::read_cstr, ColorPalette, TerminalLocation, HEIGHT, MEM, WIDTH,
+    get_pixel, get_sprite, get_sprite_flag, set_pixel, ColorPalette, TerminalLocation, HEIGHT, MEM,
+    WIDTH,
 };
 
 pub fn camera(x: i32, y: i32) {
@@ -141,26 +141,24 @@ pub fn print(string: String, x: i32, y: i32, col: i32) {
     let string = string.to_ascii_uppercase();
     let mut mem = MEM.lock().unwrap();
     let color = ColorPalette::from(col).apply_palette_mod(Some(&mem), false);
-    unsafe {
-        let mut offset = 0;
-        for ch in string.chars().collect::<Vec<char>>() {
-            if let Some(font) = FONT.get(&ch) {
-                for row_offset in 0..6 {
-                    let row = font[row_offset];
-                    for col_idx in 0..4 {
-                        if row[col_idx] {
-                            let loc = TerminalLocation(
-                                x + (offset * 4) + col_idx as i32,
-                                y + row_offset as i32,
-                            )
-                            .apply_camera_offset(Some(&mem));
-                            set_pixel(Some(&mut mem), loc, color);
-                        }
+    let mut offset = 0;
+    for ch in string.chars().collect::<Vec<char>>() {
+        if let Some(font) = FONT.get(&ch) {
+            for row_offset in 0..6 {
+                let row = font[row_offset];
+                for col_idx in 0..4 {
+                    if row[col_idx] {
+                        let loc = TerminalLocation(
+                            x + (offset * 4) + col_idx as i32,
+                            y + row_offset as i32,
+                        )
+                        .apply_camera_offset(Some(&mem));
+                        set_pixel(Some(&mut mem), loc, color);
                     }
                 }
             }
-            offset += 1;
         }
+        offset += 1;
     }
 }
 
@@ -202,11 +200,21 @@ pub fn spr(
 
                 for row_idx in 0..height_px {
                     for col_idx in 0..row_px {
-                        let loc = TerminalLocation(
+                        let mut loc = TerminalLocation(
                             x + (width_idx * 8) + col_idx,
                             y + (height_idx * 8) + row_idx,
-                        )
-                        .apply_camera_offset(Some(mem));
+                        );
+
+                        if flip_x {
+                            loc.0 = x + (width_idx * 8) + (row_px - 1 - col_idx);
+                        }
+
+                        if flip_y {
+                            loc.1 = y + (height_idx * 8) + (height_px - 1 - row_idx);
+                        }
+
+                        loc = loc.apply_camera_offset(Some(mem));
+
                         let col = sprite[row_idx as usize][col_idx as usize]
                             .apply_palette_mod(Some(mem), false);
                         if col != ColorPalette::Black {
@@ -232,8 +240,6 @@ pub fn sspr(
     flip_y: i32,
 ) {
     let mut mem = MEM.lock().unwrap();
-    let width_px = dw * 8;
-    let height_px = dh * 8;
 
     let flip_x = flip_x != 0;
     let flip_y = flip_y != 0;
@@ -242,11 +248,21 @@ pub fn sspr(
         for col_offset in 0..sw {
             for y_str_offset in 0..dh {
                 for x_str_offset in 0..dw {
-                    let loc = TerminalLocation(
+                    let mut loc = TerminalLocation(
                         dx + (col_offset * dw) + x_str_offset,
                         dy + (row_offset * dh) + y_str_offset,
-                    )
-                    .apply_camera_offset(Some(&mem));
+                    );
+
+                    if flip_x {
+                        loc.0 = dx + (col_offset * dw) + (dw - 1 - x_str_offset);
+                    }
+
+                    if flip_y {
+                        loc.1 = dy + (row_offset * dh) + (dh - 1 - y_str_offset);
+                    }
+
+                    loc = loc.apply_camera_offset(Some(&mem));
+
                     let offset = ((sx + col_offset) / 2) + ((sy + row_offset) * 64);
                     let col = ColorPalette::from(mem[offset as usize] as i32)
                         .apply_palette_mod(Some(&mem), false);

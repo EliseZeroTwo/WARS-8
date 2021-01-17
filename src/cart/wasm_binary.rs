@@ -1,4 +1,3 @@
-use crate::palette::ColorPalette;
 use crate::{
     cart::Cart,
     runtime::{wasm_runtime::WasmRuntime, Runtime},

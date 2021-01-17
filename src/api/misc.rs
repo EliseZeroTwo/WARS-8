@@ -1,9 +1,4 @@
-use wasmtime::Caller;
-
-use crate::{
-    cart::Cart, config::Config, runtime::wasm_runtime::WasmCallerWrapper, utils::read_cstr, CART,
-    CART_TO_LOAD,
-};
+use crate::{cart::Cart, config::Config, CART, CART_TO_LOAD};
 
 pub fn exit() {
     std::process::exit(0); // lol

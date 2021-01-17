@@ -6,8 +6,7 @@ pub mod wasm_binary;
 use lua_script::LuaScript;
 use p8_script::P8Script;
 
-use crate::palette::ColorPalette;
-use crate::{runtime::Runtime, CART};
+use crate::runtime::Runtime;
 
 use self::{wars_8_binary::Wars8Binary, wasm_binary::WasmBinary};
 pub trait Cart: Send + Sync {

@@ -1,9 +1,7 @@
 use std::fs;
 
-use crate::palette::ColorPalette;
-use crate::runtime::lua_runtime::LuaRuntime;
-
 use super::Cart;
+use crate::runtime::lua_runtime::LuaRuntime;
 
 pub struct LuaScript {
     path: String,

@@ -1,8 +1,5 @@
 use regex::Regex;
-use std::{
-    fs,
-    io::{Cursor, Read, Write},
-};
+use std::fs;
 
 use crate::{palette::ColorPalette, runtime::lua_runtime::LuaRuntime, set_map, set_sprite, MEM};
 

@@ -36,10 +36,7 @@ use sdl2::{
 };
 use std::convert::From;
 use std::sync::Mutex;
-use std::{
-    collections::{HashMap, HashSet},
-    sync::MutexGuard,
-};
+use std::{collections::HashSet, sync::MutexGuard};
 
 const WINDOW_WIDTH: i32 = 512;
 const WINDOW_HEIGHT: i32 = 512;
@@ -446,5 +443,5 @@ fn main() {
         fps_counter.tick(sdl_ctx.timer().unwrap().ticks());
     }
 
-    std::fs::write("./lastmem.bin", *MEM.lock().unwrap());
+    std::fs::write("./lastmem.bin", *MEM.lock().unwrap()).unwrap();
 }

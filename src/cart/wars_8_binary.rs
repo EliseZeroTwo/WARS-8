@@ -55,7 +55,7 @@ impl Wars8Binary {
 
         match reader.read_u32::<BigEndian>() {
             Ok(xc) => {
-                if reader.read_u32::<BigEndian>().unwrap() != Wars8Binary::MAGIC {
+                if xc != Wars8Binary::MAGIC {
                     _corrupt(path, "Magic invalid");
                 }
             }
@@ -69,7 +69,7 @@ impl Wars8Binary {
 
         let mut binary = vec![0; binary_size as usize];
         if let Err(why) = reader.read(binary.as_mut_slice()) {
-            _corrupt(path, "Unable to read binary");
+            _corrupt(path, format!("Unable to read binary: {}", &why).as_str());
         }
 
         let sprite_count = match reader.read_u32::<LittleEndian>() {
@@ -85,7 +85,7 @@ impl Wars8Binary {
         let mut sprites: Vec<[[ColorPalette; 8]; 8]> = Vec::new();
         for sprite in 0..sprite_count {
             let mut sprite_buffer = [0u8; 8 * 8];
-            if let Err(why) = reader.read(&mut sprite_buffer) {
+            if let Err(_) = reader.read(&mut sprite_buffer) {
                 _corrupt(path, format!("Unable to read sprite {}", sprite).as_str());
             }
 
@@ -103,7 +103,7 @@ impl Wars8Binary {
         };
 
         let mut map = vec![0; map_count as usize];
-        if let Err(why) = reader.read(map.as_mut_slice()) {
+        if let Err(_) = reader.read(map.as_mut_slice()) {
             _corrupt(path, "Unable to read map");
         }
 

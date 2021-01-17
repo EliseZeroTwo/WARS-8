@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::MutexGuard};
+use std::sync::MutexGuard;
 
 use sdl2::pixels::Color;
 

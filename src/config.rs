@@ -1,7 +1,7 @@
 use directories::ProjectDirs;
 use sdl2::keyboard::Scancode;
 use serde::{Deserialize, Serialize};
-use std::{fs, path::Path};
+use std::fs;
 
 // Lin: /home/elise/.config/WARS-8/config.json
 // Win: C:\Users\elise\AppData\Roaming\headpat\WARS-8\config\config.json

@@ -1,7 +1,7 @@
 use mlua::{Function, Lua, MultiValue, Table, Value};
 
 use crate::runtime::Runtime;
-use crate::{api, draw_state, get_sprite_flag, palette::ColorPalette, set_sprite_flag};
+use crate::{api, draw_state, get_sprite_flag, set_sprite_flag};
 pub struct LuaRuntime {
     lua: Lua,
 }
