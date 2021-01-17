@@ -1,4 +1,4 @@
-use crate::palette::ColorPallete;
+use crate::palette::ColorPalette;
 use crate::{
     cart::Cart,
     runtime::{wasm_runtime::WasmRuntime, Runtime},
@@ -56,18 +56,6 @@ impl Cart for WasmBinary {
 
     fn binary(&self) -> &[u8] {
         &self.binary
-    }
-
-    fn get_sprite(&self, idx: i32) -> Option<[[ColorPallete; 8]; 8]> {
-        None
-    }
-
-    fn get_spritesheet(&self) -> [i32; 128*32] {
-        [0; 128 * 32]
-    }
-    
-    fn get_map_cell(&self, cellx: i32, celly: i32) -> u8 {
-        0
     }
 
     fn save(&self) -> Result<(), ()> {

@@ -1,4 +1,4 @@
-use crate::palette::ColorPallete;
+use crate::palette::ColorPalette;
 use crate::{
     cart::Cart,
     runtime::{wasm_runtime::WasmRuntime, Runtime},
@@ -12,7 +12,7 @@ pub struct Wars8Binary {
     path: String,
     name: String,
     binary: Vec<u8>,
-    sprites: Vec<[[ColorPallete; 8]; 8]>,
+    sprites: Vec<[[ColorPalette; 8]; 8]>,
     map: Vec<u8>,
 }
 
@@ -82,7 +82,7 @@ impl Wars8Binary {
             Err(_) => 0,
         };
 
-        let mut sprites: Vec<[[ColorPallete; 8]; 8]> = Vec::new();
+        let mut sprites: Vec<[[ColorPalette; 8]; 8]> = Vec::new();
         for sprite in 0..sprite_count {
             let mut sprite_buffer = [0u8; 8 * 8];
             if let Err(why) = reader.read(&mut sprite_buffer) {
@@ -92,7 +92,7 @@ impl Wars8Binary {
             for row in 0..8 {
                 for col in 0..8 {
                     sprites[sprite as usize][row][col] =
-                        ColorPallete::from(sprite_buffer[(row * 8) + col] as i32);
+                        ColorPalette::from(sprite_buffer[(row * 8) + col] as i32);
                 }
             }
         }
@@ -128,27 +128,6 @@ impl Cart for Wars8Binary {
 
     fn binary(&self) -> &[u8] {
         &self.binary
-    }
-
-    fn get_sprite(&self, idx: i32) -> Option<[[ColorPallete; 8]; 8]> {
-        if self.sprites.len() > idx as usize {
-            Some(self.sprites[idx as usize])
-        } else {
-            None
-        }
-    }
-
-    fn get_spritesheet(&self) -> [i32; 128*32] {
-        [0; 128 * 32]
-    }
-
-    fn get_map_cell(&self, cellx: i32, celly: i32) -> u8 {
-        let idx = (cellx + (celly * 128)) as usize;
-        if self.map.len() > idx {
-            self.map[idx]
-        } else {
-            0
-        }
     }
 
     fn save(&self) -> Result<(), ()> {

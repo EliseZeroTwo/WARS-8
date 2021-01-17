@@ -6,7 +6,7 @@ pub mod wasm_binary;
 use lua_script::LuaScript;
 use p8_script::P8Script;
 
-use crate::palette::ColorPallete;
+use crate::palette::ColorPalette;
 use crate::{runtime::Runtime, CART};
 
 use self::{wars_8_binary::Wars8Binary, wasm_binary::WasmBinary};
@@ -14,9 +14,6 @@ pub trait Cart: Send + Sync {
     fn name(&self) -> String;
     fn size(&self) -> u32;
     fn binary(&self) -> &[u8];
-    fn get_sprite(&self, idx: i32) -> Option<[[ColorPallete; 8]; 8]>;
-    fn get_spritesheet(&self) -> [i32; 128*32];
-    fn get_map_cell(&self, cellx: i32, celly: i32) -> u8;
     fn save(&self) -> Result<(), ()>;
     fn create_runtime(&self) -> Box<dyn Runtime>;
 }

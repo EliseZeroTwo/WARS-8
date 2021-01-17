@@ -1,6 +1,6 @@
 use std::fs;
 
-use crate::palette::ColorPallete;
+use crate::palette::ColorPalette;
 use crate::runtime::lua_runtime::LuaRuntime;
 
 use super::Cart;
@@ -61,18 +61,6 @@ impl Cart for LuaScript {
 
     fn binary(&self) -> &[u8] {
         &self.script[..]
-    }
-
-    fn get_sprite(&self, idx: i32) -> Option<[[crate::palette::ColorPallete; 8]; 8]> {
-        None
-    }
-
-    fn get_spritesheet(&self) -> [i32; 128*32] {
-        [0; 128 * 32]
-    }
-
-    fn get_map_cell(&self, cellx: i32, celly: i32) -> u8 {
-        0
     }
 
     fn save(&self) -> Result<(), ()> {

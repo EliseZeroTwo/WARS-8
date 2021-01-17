@@ -1,3 +1,5 @@
+#![feature(slice_fill)]
+
 extern crate directories;
 #[macro_use]
 extern crate lazy_static;
@@ -9,6 +11,7 @@ extern crate serde_json;
 extern crate wasmtime;
 
 mod cart;
+mod draw_state;
 mod config;
 mod font;
 mod palette;
@@ -20,7 +23,7 @@ mod api;
 
 use crate::cart::Cart;
 use crate::config::Config;
-use crate::palette::ColorPallete;
+use crate::palette::ColorPalette;
 use crate::runtime::*;
 use crate::utils::*;
 use rand_pcg::Pcg64Mcg;
@@ -31,7 +34,7 @@ use sdl2::{
     event::{Event, WindowEvent},
     rect::Rect,
 };
-use std::collections::HashSet;
+use std::{collections::{HashMap, HashSet}, sync::MutexGuard};
 use std::convert::From;
 use std::sync::Mutex;
 
@@ -55,31 +58,14 @@ impl TerminalLocation {
     fn is_valid(&self) -> bool {
         self.0 >= 0 && self.1 >= 0 && self.0 < WIDTH && self.1 < HEIGHT
     }
-}
 
-pub struct DrawState {
-    pen_color: ColorPallete,
-    camera_position: (i32, i32),
-    cursor_pos: u32,
-    clip_region: (u32, u32, u32, u32),
-    fill_pattern: u16,
-}
-
-impl DrawState {
-    pub fn new() -> DrawState {
-        DrawState {
-            pen_color: ColorPallete::Black,
-            camera_position: (0, 0),
-            cursor_pos: 0,
-            clip_region: (0, 0, 127, 127),
-            fill_pattern: 0xFFFF,
-        }
+    fn apply_camera_offset(&self, mutex_guard: Option<&MutexGuard<[u8; 0x8000]>>) -> TerminalLocation {
+        let off = crate::draw_state::get_camera_offset(mutex_guard);
+        TerminalLocation(self.0 - off.0, self.1 - off.1)
     }
 }
 
 lazy_static! {
-    static ref PXBUF_MUTEX: Mutex<[ColorPallete; (WIDTH * HEIGHT) as usize]> =
-        Mutex::new([ColorPallete::Black; (WIDTH * HEIGHT) as usize]);
     static ref KEYSTATE_FRAME: Mutex<HashSet<Scancode>> = Mutex::new(HashSet::new());
     static ref KEYSTATE_FRAME_FIFO: Mutex<Vec<Scancode>> = Mutex::new(Vec::new());
     static ref KEYSTATE_HELD: Mutex<HashSet<Scancode>> = Mutex::new(HashSet::new());
@@ -87,7 +73,180 @@ lazy_static! {
     static ref RAND_SRC: Mutex<Pcg64Mcg> = Mutex::new(Pcg64Mcg::new(0xcafef00dbeefd34d));
     static ref CART: Mutex<Option<Box<dyn Cart>>> = Mutex::new(None);
     static ref CART_TO_LOAD: Mutex<bool> = Mutex::new(false);
-    static ref DRAW_STATE: Mutex<DrawState> = Mutex::new(DrawState::new());
+    static ref MEM: Mutex<[u8; 0x8000]> = Mutex::new([0; 0x8000]);
+}
+
+pub fn set_pixel(mutex_guard: Option<&mut MutexGuard<[u8; 0x8000]>>, loc: TerminalLocation, color: ColorPalette) {
+    if loc.is_valid() {
+        let mut mutex;
+        let mg = match mutex_guard {
+            Some(mg) => mg,
+            None => {
+                mutex = MEM.lock().unwrap();
+                &mut mutex
+            }
+        };
+
+
+        let offset = (0x6000 + loc.0 / 2 + (loc.1 * WIDTH / 2)) as usize;
+        if loc.0 % 2 == 1 {
+            let lower = mg[offset] & 0b1111;
+            mg[offset] = (i32::from(color) as u8) << 4 | lower;
+        } else {
+            let higher = mg[offset] & 0b1111_0000;
+            mg[offset] = (i32::from(color) as u8) | higher;
+        }
+    }
+}
+
+pub fn get_pixel(mutex_guard: Option<&MutexGuard<[u8; 0x8000]>>, loc: TerminalLocation) -> ColorPalette {
+    let mut mutex;
+    let mg = match mutex_guard {
+        Some(mg) => mg,
+        None => {
+            mutex = MEM.lock().unwrap();
+            &mut mutex
+        }
+    };
+
+    let offset = (0x6000 + loc.0 / 2 + (loc.1 * WIDTH / 2)) as usize;
+    if loc.0 % 2 == 1 {
+        ColorPalette::from(((mg[offset] >> 4) & 0b1111) as i32)
+    } else {
+        ColorPalette::from((mg[offset] & 0b1111) as i32)
+    }
+}
+
+pub fn set_map(mutex_guard: Option<&mut MutexGuard<[u8; 0x8000]>>, x: i32, y: i32, val: u8) {
+    let mut mutex;
+    let mg = match mutex_guard {
+        Some(mg) => mg,
+        None => {
+            mutex = MEM.lock().unwrap();
+            &mut mutex
+        }
+    };
+
+    if y < 32 {
+        mg[(0x2000 + x + (y * 128)) as usize] = val;
+    } else if y < 64 {
+        mg[(0x1000 + x + (y * 128)) as usize] = val;
+    }
+}
+
+pub fn get_map(mutex_guard: Option<&mut MutexGuard<[u8; 0x8000]>>, x: i32, y: i32) -> u8 {
+    let mut mutex;
+    let mg = match mutex_guard {
+        Some(mg) => mg,
+        None => {
+            mutex = MEM.lock().unwrap();
+            &mut mutex
+        }
+    };
+
+    if y < 32 {
+        mg[(0x2000 + x + (y * 128)) as usize]
+    } else if y < 64 {
+        mg[(0x1000 + x + (y * 128)) as usize]
+    } else {
+        0
+    }
+}
+
+pub fn set_sprite(mutex_guard: Option<&mut MutexGuard<[u8; 0x8000]>>, idx: i32, data: [[ColorPalette; 8]; 8]) {
+    let mut mutex;
+    let mg = match mutex_guard {
+        Some(mg) => mg,
+        None => {
+            mutex = MEM.lock().unwrap();
+            &mut mutex
+        }
+    };
+
+    let offset = (4 * (idx % 16)) + ((8 * 64) * (idx / 16));
+    for y in 0..8 {
+        for x in 0..4 {
+            let offset = (offset + x + (y * 64)) as usize;
+
+            let col0 = i32::from(data[y as usize][(x * 2) as usize]) as u8;
+            let col1 = i32::from(data[y as usize][((x * 2)+ 1) as usize]) as u8;
+            mg[offset as usize] = col0 | (col1 << 4);
+        }
+    }
+}
+
+pub fn get_sprite(mutex_guard: Option<&MutexGuard<[u8; 0x8000]>>, idx: i32) -> [[ColorPalette; 8]; 8] {
+    let mutex;
+    let mg = match mutex_guard {
+        Some(mg) => mg,
+        None => {
+            mutex = MEM.lock().unwrap();
+            &mutex
+        }
+    };
+
+    let mut sprite = [[ColorPalette::Black; 8]; 8];
+    let offset = (4 * (idx % 16)) + ((8 * 64) * (idx / 16));
+    for y in 0..8 {
+        for x in 0..4 {
+            let offset = offset + x + (y * 64);
+
+            let col0 = mg[offset as usize] & 0b1111;
+            let col1 = (mg[offset as usize] >> 4) & 0b1111;
+            sprite[y as usize][(x * 2) as usize] = ColorPalette::from(col0 as i32);
+            sprite[y as usize][(x * 2) as usize] = ColorPalette::from(col1 as i32);
+        }
+    }
+
+    sprite
+}
+
+pub fn set_sprite_flag(mutex_guard: Option<&mut MutexGuard<[u8; 0x8000]>>, sprite_idx: i32, flag_idx: Option<u8>, val: u8) {
+    let mut mutex;
+    let mg = match mutex_guard {
+        Some(mg) => mg,
+        None => {
+            mutex = MEM.lock().unwrap();
+            &mut mutex
+        }
+    };
+
+    if sprite_idx >= 0 && sprite_idx <= 0xFF {
+        let addr = 0x3000 + sprite_idx as usize;
+        if let Some(idx) = flag_idx {
+            let idx = idx.max(7);
+            let set =  (val & 0b1) << idx;
+            if set != 0 {
+                mg[addr] |= set;
+            } else {
+                mg[addr] &= !(1 << idx);
+            }
+        } else {
+            mg[addr] = val;
+        }
+    }
+}
+
+pub fn get_sprite_flag(mutex_guard: Option<&MutexGuard<[u8; 0x8000]>>, sprite_idx: i32, flag_idx: Option<u8>) -> u8 {
+    let mutex;
+    let mg = match mutex_guard {
+        Some(mg) => mg,
+        None => {
+            mutex = MEM.lock().unwrap();
+            &mutex
+        }
+    };
+
+    if sprite_idx >= 0 && sprite_idx <= 0xFF {
+        let val = mg[0x3000 + sprite_idx as usize];
+        if let Some(idx) = flag_idx {
+            val >> idx.max(7) & 0b1
+        } else {
+            val
+        }
+    } else {
+        0
+    }
 }
 
 fn main() {
@@ -135,27 +294,28 @@ fn main() {
     let mut runtime = cart_pre_mutex.as_deref().unwrap().create_runtime();
     drop(cart_pre_mutex);
 
+    draw_state::reset(None);
     runtime.init();
 
     let mut target_ms = sdl_ctx.timer().unwrap().ticks() + FRAME_LEN_MS;
     let mut fps_counter = FpsCounter::new(sdl_ctx.timer().unwrap().ticks());
     let mut paused = false;
-
     'sdlloop: loop {
         let mut cart_mutex = CART.lock().unwrap();
         let mut cart_to_load_mutex = CART_TO_LOAD.lock().unwrap();
         if cart_mutex.is_none() || *cart_to_load_mutex == true {
+            let mut mem =  MEM.lock().unwrap();
+            mem.fill(0);
+
+            draw_state::reset(Some(&mut mem));
+
             *cart_to_load_mutex = false;
             if cart_mutex.is_none() {
                 println!("Resetting to boot cartridge");
                 *cart_mutex = Some(Cart::load(&boot_cart_path));
             }
-            runtime = cart_mutex.as_deref().unwrap().create_runtime();
 
-            let mut framebuffer = PXBUF_MUTEX.lock().unwrap();
-            for idx in 0..framebuffer.len() {
-                framebuffer[idx] = ColorPallete::Black;
-            }
+            runtime = cart_mutex.as_deref().unwrap().create_runtime();
             runtime.init();
         }
 
@@ -232,13 +392,16 @@ fn main() {
 
         texture
             .with_lock(None, |buffer: &mut [u8], _pitch: usize| {
-                let framebuffer = PXBUF_MUTEX.lock().unwrap();
-                for idx in 0..framebuffer.len() {
-                    let raw_idx = idx * 4;
-                    let color = Color::from(framebuffer[idx]);
-                    buffer[raw_idx + 1] = color.b;
-                    buffer[raw_idx + 2] = color.g;
-                    buffer[raw_idx + 3] = color.r;
+                let memory = MEM.lock().unwrap();
+                for y in 0..HEIGHT {
+                    for x in 0..WIDTH {
+                        let loc = TerminalLocation(x, y);
+                        let raw_idx = usize::from(loc) * 4;
+                        let color = Color::from(get_pixel(Some(&memory), loc));
+                        buffer[raw_idx + 1] = color.b;
+                        buffer[raw_idx + 2] = color.g;
+                        buffer[raw_idx + 3] = color.r;
+                    }
                 }
             })
             .unwrap();
@@ -254,4 +417,6 @@ fn main() {
         }
         fps_counter.tick(sdl_ctx.timer().unwrap().ticks());
     }
+
+    std::fs::write("./lastmem.bin", *MEM.lock().unwrap());
 }
