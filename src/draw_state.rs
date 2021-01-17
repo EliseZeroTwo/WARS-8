@@ -1,6 +1,6 @@
 use std::sync::MutexGuard;
 
-use crate::{MEM, palette::ColorPalette};
+use crate::{palette::ColorPalette, MEM};
 
 pub fn reset(mutex_guard: Option<&mut MutexGuard<[u8; 0x8000]>>) {
     let mut mutex;
@@ -37,7 +37,10 @@ pub fn reset_palette(mutex_guard: Option<&mut MutexGuard<[u8; 0x8000]>>, draw: b
     }
 }
 
-pub fn get_draw_palette(mutex_guard: Option<&MutexGuard<[u8; 0x8000]>>, col: ColorPalette) -> (ColorPalette, bool) {
+pub fn get_draw_palette(
+    mutex_guard: Option<&MutexGuard<[u8; 0x8000]>>,
+    col: ColorPalette,
+) -> (ColorPalette, bool) {
     let mutex;
     let mg = match mutex_guard {
         Some(mg) => mg,
@@ -53,7 +56,12 @@ pub fn get_draw_palette(mutex_guard: Option<&MutexGuard<[u8; 0x8000]>>, col: Col
     (ColorPalette::from((val & 0b1111) as i32), transparent)
 }
 
-pub fn set_draw_palette(mutex_guard: Option<&mut MutexGuard<[u8; 0x8000]>>, col: ColorPalette, set_col: Option<ColorPalette>, set_transparent: Option<bool>) {
+pub fn set_draw_palette(
+    mutex_guard: Option<&mut MutexGuard<[u8; 0x8000]>>,
+    col: ColorPalette,
+    set_col: Option<ColorPalette>,
+    set_transparent: Option<bool>,
+) {
     let mut mutex;
     let mg = match mutex_guard {
         Some(mg) => mg,
@@ -71,13 +79,20 @@ pub fn set_draw_palette(mutex_guard: Option<&mut MutexGuard<[u8; 0x8000]>>, col:
     }
 
     if let Some(transparent) = set_transparent {
-        val = (match transparent { false => 0, true => 1 } << 4) | (val & 0b1111);
+        val = (match transparent {
+            false => 0,
+            true => 1,
+        } << 4)
+            | (val & 0b1111);
     }
 
     mg[idx] = val;
 }
 
-pub fn get_screen_palette(mutex_guard: Option<&MutexGuard<[u8; 0x8000]>>, col: ColorPalette) -> ColorPalette {
+pub fn get_screen_palette(
+    mutex_guard: Option<&MutexGuard<[u8; 0x8000]>>,
+    col: ColorPalette,
+) -> ColorPalette {
     let mutex;
     let mg = match mutex_guard {
         Some(mg) => mg,
@@ -92,7 +107,11 @@ pub fn get_screen_palette(mutex_guard: Option<&MutexGuard<[u8; 0x8000]>>, col: C
     ColorPalette::from((val & 0b1111) as i32)
 }
 
-pub fn set_screen_palette(mutex_guard: Option<&mut MutexGuard<[u8; 0x8000]>>, col: ColorPalette, set_col: ColorPalette) {
+pub fn set_screen_palette(
+    mutex_guard: Option<&mut MutexGuard<[u8; 0x8000]>>,
+    col: ColorPalette,
+    set_col: ColorPalette,
+) {
     let mut mutex;
     let mg = match mutex_guard {
         Some(mg) => mg,
@@ -151,7 +170,11 @@ pub fn get_print_cursor(mutex_guard: Option<&MutexGuard<[u8; 0x8000]>>) -> (u8, 
     (x, y)
 }
 
-pub fn set_print_cursor(mutex_guard: Option<&mut MutexGuard<[u8; 0x8000]>>, x: Option<u8>, y: Option<u8>) {
+pub fn set_print_cursor(
+    mutex_guard: Option<&mut MutexGuard<[u8; 0x8000]>>,
+    x: Option<u8>,
+    y: Option<u8>,
+) {
     let mut mutex;
     let mg = match mutex_guard {
         Some(mg) => mg,
@@ -185,7 +208,11 @@ pub fn get_camera_offset(mutex_guard: Option<&MutexGuard<[u8; 0x8000]>>) -> (i32
     (x as i32, y as i32)
 }
 
-pub fn set_camera_offset(mutex_guard: Option<&mut MutexGuard<[u8; 0x8000]>>, x: Option<i32>, y: Option<i32>) {
+pub fn set_camera_offset(
+    mutex_guard: Option<&mut MutexGuard<[u8; 0x8000]>>,
+    x: Option<i32>,
+    y: Option<i32>,
+) {
     let mut mutex;
     let mg = match mutex_guard {
         Some(mg) => mg,

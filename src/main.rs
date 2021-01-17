@@ -11,8 +11,8 @@ extern crate serde_json;
 extern crate wasmtime;
 
 mod cart;
-mod draw_state;
 mod config;
+mod draw_state;
 mod font;
 mod palette;
 mod runtime;
@@ -34,9 +34,12 @@ use sdl2::{
     event::{Event, WindowEvent},
     rect::Rect,
 };
-use std::{collections::{HashMap, HashSet}, sync::MutexGuard};
 use std::convert::From;
 use std::sync::Mutex;
+use std::{
+    collections::{HashMap, HashSet},
+    sync::MutexGuard,
+};
 
 const WINDOW_WIDTH: i32 = 512;
 const WINDOW_HEIGHT: i32 = 512;
@@ -59,7 +62,10 @@ impl TerminalLocation {
         self.0 >= 0 && self.1 >= 0 && self.0 < WIDTH && self.1 < HEIGHT
     }
 
-    fn apply_camera_offset(&self, mutex_guard: Option<&MutexGuard<[u8; 0x8000]>>) -> TerminalLocation {
+    fn apply_camera_offset(
+        &self,
+        mutex_guard: Option<&MutexGuard<[u8; 0x8000]>>,
+    ) -> TerminalLocation {
         let off = crate::draw_state::get_camera_offset(mutex_guard);
         TerminalLocation(self.0 - off.0, self.1 - off.1)
     }
@@ -76,7 +82,11 @@ lazy_static! {
     static ref MEM: Mutex<[u8; 0x8000]> = Mutex::new([0; 0x8000]);
 }
 
-pub fn set_pixel(mutex_guard: Option<&mut MutexGuard<[u8; 0x8000]>>, loc: TerminalLocation, color: ColorPalette) {
+pub fn set_pixel(
+    mutex_guard: Option<&mut MutexGuard<[u8; 0x8000]>>,
+    loc: TerminalLocation,
+    color: ColorPalette,
+) {
     if loc.is_valid() {
         let mut mutex;
         let mg = match mutex_guard {
@@ -86,7 +96,6 @@ pub fn set_pixel(mutex_guard: Option<&mut MutexGuard<[u8; 0x8000]>>, loc: Termin
                 &mut mutex
             }
         };
-
 
         let offset = (0x6000 + loc.0 / 2 + (loc.1 * WIDTH / 2)) as usize;
         if loc.0 % 2 == 1 {
@@ -99,7 +108,10 @@ pub fn set_pixel(mutex_guard: Option<&mut MutexGuard<[u8; 0x8000]>>, loc: Termin
     }
 }
 
-pub fn get_pixel(mutex_guard: Option<&MutexGuard<[u8; 0x8000]>>, loc: TerminalLocation) -> ColorPalette {
+pub fn get_pixel(
+    mutex_guard: Option<&MutexGuard<[u8; 0x8000]>>,
+    loc: TerminalLocation,
+) -> ColorPalette {
     let mut mutex;
     let mg = match mutex_guard {
         Some(mg) => mg,
@@ -153,7 +165,11 @@ pub fn get_map(mutex_guard: Option<&mut MutexGuard<[u8; 0x8000]>>, x: i32, y: i3
     }
 }
 
-pub fn set_sprite(mutex_guard: Option<&mut MutexGuard<[u8; 0x8000]>>, idx: i32, data: [[ColorPalette; 8]; 8]) {
+pub fn set_sprite(
+    mutex_guard: Option<&mut MutexGuard<[u8; 0x8000]>>,
+    idx: i32,
+    data: [[ColorPalette; 8]; 8],
+) {
     let mut mutex;
     let mg = match mutex_guard {
         Some(mg) => mg,
@@ -169,13 +185,16 @@ pub fn set_sprite(mutex_guard: Option<&mut MutexGuard<[u8; 0x8000]>>, idx: i32, 
             let offset = (offset + x + (y * 64)) as usize;
 
             let col0 = i32::from(data[y as usize][(x * 2) as usize]) as u8;
-            let col1 = i32::from(data[y as usize][((x * 2)+ 1) as usize]) as u8;
+            let col1 = i32::from(data[y as usize][((x * 2) + 1) as usize]) as u8;
             mg[offset as usize] = col0 | (col1 << 4);
         }
     }
 }
 
-pub fn get_sprite(mutex_guard: Option<&MutexGuard<[u8; 0x8000]>>, idx: i32) -> [[ColorPalette; 8]; 8] {
+pub fn get_sprite(
+    mutex_guard: Option<&MutexGuard<[u8; 0x8000]>>,
+    idx: i32,
+) -> [[ColorPalette; 8]; 8] {
     let mutex;
     let mg = match mutex_guard {
         Some(mg) => mg,
@@ -201,7 +220,12 @@ pub fn get_sprite(mutex_guard: Option<&MutexGuard<[u8; 0x8000]>>, idx: i32) -> [
     sprite
 }
 
-pub fn set_sprite_flag(mutex_guard: Option<&mut MutexGuard<[u8; 0x8000]>>, sprite_idx: i32, flag_idx: Option<u8>, val: u8) {
+pub fn set_sprite_flag(
+    mutex_guard: Option<&mut MutexGuard<[u8; 0x8000]>>,
+    sprite_idx: i32,
+    flag_idx: Option<u8>,
+    val: u8,
+) {
     let mut mutex;
     let mg = match mutex_guard {
         Some(mg) => mg,
@@ -215,7 +239,7 @@ pub fn set_sprite_flag(mutex_guard: Option<&mut MutexGuard<[u8; 0x8000]>>, sprit
         let addr = 0x3000 + sprite_idx as usize;
         if let Some(idx) = flag_idx {
             let idx = idx.max(7);
-            let set =  (val & 0b1) << idx;
+            let set = (val & 0b1) << idx;
             if set != 0 {
                 mg[addr] |= set;
             } else {
@@ -227,7 +251,11 @@ pub fn set_sprite_flag(mutex_guard: Option<&mut MutexGuard<[u8; 0x8000]>>, sprit
     }
 }
 
-pub fn get_sprite_flag(mutex_guard: Option<&MutexGuard<[u8; 0x8000]>>, sprite_idx: i32, flag_idx: Option<u8>) -> u8 {
+pub fn get_sprite_flag(
+    mutex_guard: Option<&MutexGuard<[u8; 0x8000]>>,
+    sprite_idx: i32,
+    flag_idx: Option<u8>,
+) -> u8 {
     let mutex;
     let mg = match mutex_guard {
         Some(mg) => mg,
@@ -304,7 +332,7 @@ fn main() {
         let mut cart_mutex = CART.lock().unwrap();
         let mut cart_to_load_mutex = CART_TO_LOAD.lock().unwrap();
         if cart_mutex.is_none() || *cart_to_load_mutex == true {
-            let mut mem =  MEM.lock().unwrap();
+            let mut mem = MEM.lock().unwrap();
             mem.fill(0);
 
             draw_state::reset(Some(&mut mem));

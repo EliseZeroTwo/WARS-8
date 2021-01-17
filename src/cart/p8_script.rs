@@ -1,7 +1,10 @@
-use std::{fs, io::{Cursor, Read, Write}};
 use regex::Regex;
+use std::{
+    fs,
+    io::{Cursor, Read, Write},
+};
 
-use crate::{MEM, palette::ColorPalette, runtime::lua_runtime::LuaRuntime, set_map, set_sprite};
+use crate::{palette::ColorPalette, runtime::lua_runtime::LuaRuntime, set_map, set_sprite, MEM};
 
 use super::Cart;
 
@@ -10,8 +13,8 @@ pub struct P8Script {
     name: String,
     script: Vec<u8>,
     sprites: Vec<[[ColorPalette; 8]; 8]>,
-    spritesheet: [i32; 128*128],
-    map: [i32; 128*64],
+    spritesheet: [i32; 128 * 128],
+    map: [i32; 128 * 64],
 }
 
 impl P8Script {
@@ -49,17 +52,15 @@ impl P8Script {
 
         let mut lua_start = -1;
         let mut lua_end = lines.len() as i32;
-        
+
         let mut gfx_start = -1;
         let mut gfx_end = lines.len() as i32;
-        
+
         let mut gff_start = -1;
         let mut gff_end = lines.len() as i32;
-        
+
         let mut map_start = -1;
         let mut map_end = lines.len() as i32;
-
-
 
         let p8_cart_sec_regex = Regex::new(r"__[a-zA-Z]*__$").unwrap();
 
@@ -118,35 +119,35 @@ impl P8Script {
         for x in lua_start..lua_end {
             let mut line = lines[x as usize].to_owned();
             let mut line_clone = line.clone();
-            
+
             for x in plus_equals_regex.captures_iter(&line_clone) {
-                line = line.replace("+=",format!("= {} +", &x[1]).as_str());
+                line = line.replace("+=", format!("= {} +", &x[1]).as_str());
             }
 
             for x in minus_equals_regex.captures_iter(&line_clone) {
-                line = line.replace("-=",format!("= {} -", &x[1]).as_str());
+                line = line.replace("-=", format!("= {} -", &x[1]).as_str());
             }
 
             for x in mul_equals_regex.captures_iter(&line_clone) {
-                line = line.replace("*=",format!("= {} *", &x[1]).as_str());
+                line = line.replace("*=", format!("= {} *", &x[1]).as_str());
             }
 
             for x in div_equals_regex.captures_iter(&line_clone) {
-                line = line.replace("/=",format!("= {} /", &x[1]).as_str());
+                line = line.replace("/=", format!("= {} /", &x[1]).as_str());
             }
 
             for x in mod_equals_regex.captures_iter(&line_clone) {
-                line = line.replace("%=",format!("= {} %", &x[1]).as_str());
+                line = line.replace("%=", format!("= {} %", &x[1]).as_str());
             }
 
             for x in pow_equals_regex.captures_iter(&line_clone) {
-                line = line.replace("^=",format!("= {} ^", &x[1]).as_str());
+                line = line.replace("^=", format!("= {} ^", &x[1]).as_str());
             }
 
             if if_return_regex.is_match(&line_clone) {
                 line = line.replace("return", "then\nreturn\nend");
             }
-            
+
             line = line.replace("!=", "~=");
 
             for ch in line.as_bytes() {
@@ -157,25 +158,26 @@ impl P8Script {
 
         let mut mem_lock = MEM.lock().unwrap();
 
-        let mut spritesheet = [0; 128*128];
+        let mut spritesheet = [0; 128 * 128];
         let mut sprites: Vec<[[ColorPalette; 8]; 8]> = Vec::new();
         if gfx_start != -1 {
             for x in 0..(gfx_end - gfx_start) {
                 let mut ctr = 0;
                 for ch in lines[(gfx_start + x) as usize].as_bytes() {
-                    spritesheet[((x * 128) + ctr) as usize] = (*ch as char).to_digit(16).unwrap() as i32;
+                    spritesheet[((x * 128) + ctr) as usize] =
+                        (*ch as char).to_digit(16).unwrap() as i32;
                     ctr += 1;
                 }
             }
 
-            
             let amnt = 16 * ((gfx_end - gfx_start) / 8);
             for x in 0..amnt {
                 sprites.push([[ColorPalette::Black; 8]; 8]);
                 let base = (8 * (x % 16)) + ((8 * 128) * (x / 16));
                 for row in 0..8 {
                     for col in 0..8 {
-                        let color = ColorPalette::from(spritesheet[(base + col + (row * 128)) as usize]);
+                        let color =
+                            ColorPalette::from(spritesheet[(base + col + (row * 128)) as usize]);
                         sprites[x as usize][row as usize][col as usize] = color;
                     }
                 }
@@ -188,7 +190,7 @@ impl P8Script {
 
         let mut map = [0; (128 * 64)];
         if map_start != -1 {
-            for idx in 0..(map_end-map_start) {
+            for idx in 0..(map_end - map_start) {
                 let mut ctr = 0;
                 for ch in lines[(map_start + idx) as usize].as_bytes() {
                     let val = (*ch as char).to_digit(16).unwrap() as u8;

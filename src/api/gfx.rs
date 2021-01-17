@@ -2,8 +2,8 @@ use std::sync::MutexGuard;
 
 use crate::{draw_state, font::FONT, get_map, set_map};
 use crate::{
-    runtime::wasm_runtime::WasmCallerWrapper, utils::read_cstr, ColorPalette, TerminalLocation, get_pixel, set_pixel, MEM, get_sprite, get_sprite_flag, set_sprite_flag,
-    HEIGHT, WIDTH,
+    get_pixel, get_sprite, get_sprite_flag, runtime::wasm_runtime::WasmCallerWrapper, set_pixel,
+    set_sprite_flag, utils::read_cstr, ColorPalette, TerminalLocation, HEIGHT, MEM, WIDTH,
 };
 
 pub fn camera(x: i32, y: i32) {
@@ -91,7 +91,6 @@ pub fn palt(col: i32, transparent: i32) {
     draw_state::set_draw_palette(None, ColorPalette::from(col), None, Some(transparent));
 }
 
-
 pub fn pset(x: i32, y: i32, color: i32) {
     let idx = TerminalLocation(x, y);
     let mut mem = MEM.lock().unwrap();
@@ -129,7 +128,7 @@ pub fn rectfill(x0: i32, y0: i32, x1: i32, y1: i32, color: i32) {
     for x in x0..=x1 {
         for y in y0..=y1 {
             let loc = TerminalLocation(x, y).apply_camera_offset(Some(&mem));
-                set_pixel(Some(&mut mem), loc, color);
+            set_pixel(Some(&mut mem), loc, color);
         }
     }
 }
@@ -153,7 +152,8 @@ pub fn print(string: String, x: i32, y: i32, col: i32) {
                             let loc = TerminalLocation(
                                 x + (offset * 4) + col_idx as i32,
                                 y + row_offset as i32,
-                            ).apply_camera_offset(Some(&mem));
+                            )
+                            .apply_camera_offset(Some(&mem));
                             set_pixel(Some(&mut mem), loc, color);
                         }
                     }
@@ -168,7 +168,16 @@ pub fn printh(str: String) {
     println!("{}", str);
 }
 
-pub fn spr(mem: Option<&mut MutexGuard<[u8; 0x8000]>>, idx: i32, x: i32, y: i32, w: f32, h: f32, flip_x: i32, flip_y: i32) {
+pub fn spr(
+    mem: Option<&mut MutexGuard<[u8; 0x8000]>>,
+    idx: i32,
+    x: i32,
+    y: i32,
+    w: f32,
+    h: f32,
+    flip_x: i32,
+    flip_y: i32,
+) {
     let width_px = (8.0 * w).floor() as i32;
     let height_px = (8.0 * h).floor() as i32;
 
@@ -196,8 +205,10 @@ pub fn spr(mem: Option<&mut MutexGuard<[u8; 0x8000]>>, idx: i32, x: i32, y: i32,
                         let loc = TerminalLocation(
                             x + (width_idx * 8) + col_idx,
                             y + (height_idx * 8) + row_idx,
-                        ).apply_camera_offset(Some(mem));
-                        let col = sprite[row_idx as usize][col_idx as usize].apply_palette_mod(Some(mem), false);
+                        )
+                        .apply_camera_offset(Some(mem));
+                        let col = sprite[row_idx as usize][col_idx as usize]
+                            .apply_palette_mod(Some(mem), false);
                         if col != ColorPalette::Black {
                             set_pixel(Some(mem), loc, col);
                         }
@@ -208,7 +219,18 @@ pub fn spr(mem: Option<&mut MutexGuard<[u8; 0x8000]>>, idx: i32, x: i32, y: i32,
     }
 }
 
-pub fn sspr(sx: i32, sy: i32, sw: i32, sh: i32, dx: i32, dy: i32, dw: i32, dh: i32, flip_x: i32, flip_y: i32) {
+pub fn sspr(
+    sx: i32,
+    sy: i32,
+    sw: i32,
+    sh: i32,
+    dx: i32,
+    dy: i32,
+    dw: i32,
+    dh: i32,
+    flip_x: i32,
+    flip_y: i32,
+) {
     let mut mem = MEM.lock().unwrap();
     let width_px = dw * 8;
     let height_px = dh * 8;
@@ -223,17 +245,18 @@ pub fn sspr(sx: i32, sy: i32, sw: i32, sh: i32, dx: i32, dy: i32, dw: i32, dh: i
                     let loc = TerminalLocation(
                         dx + (col_offset * dw) + x_str_offset,
                         dy + (row_offset * dh) + y_str_offset,
-                    ).apply_camera_offset(Some(&mem));
+                    )
+                    .apply_camera_offset(Some(&mem));
                     let offset = ((sx + col_offset) / 2) + ((sy + row_offset) * 64);
-                    let col = ColorPalette::from(mem[offset as usize] as i32).apply_palette_mod(Some(&mem), false);
+                    let col = ColorPalette::from(mem[offset as usize] as i32)
+                        .apply_palette_mod(Some(&mem), false);
                     if col != ColorPalette::Black {
                         set_pixel(Some(&mut mem), loc, col);
                     }
                 }
             }
-        } 
+        }
     }
-    
 }
 
 pub fn map(cel_x: i32, cel_y: i32, scr_x: i32, scr_y: i32, cel_w: i32, cel_h: i32, layer: i32) {
@@ -241,11 +264,21 @@ pub fn map(cel_x: i32, cel_y: i32, scr_x: i32, scr_y: i32, cel_w: i32, cel_h: i3
     let layer = layer as u8;
     for y in 0..cel_h {
         for x in 0..cel_w {
-            let loc = TerminalLocation((scr_y + (y * 8)) as i32, (scr_x + (x * 8)) as i32).apply_camera_offset(Some(&mem));
+            let loc = TerminalLocation((scr_y + (y * 8)) as i32, (scr_x + (x * 8)) as i32)
+                .apply_camera_offset(Some(&mem));
             if loc.is_valid() {
                 let val = get_map(Some(&mut mem), cel_x + x, cel_y + y) as i32;
                 if get_sprite_flag(Some(&mem), val, None) & layer == layer {
-                    spr(Some(&mut mem), val, scr_x + (x * 8), scr_y + (y * 8), 1.0, 1.0, 0, 0);
+                    spr(
+                        Some(&mut mem),
+                        val,
+                        scr_x + (x * 8),
+                        scr_y + (y * 8),
+                        1.0,
+                        1.0,
+                        0,
+                        0,
+                    );
                 }
             }
         }

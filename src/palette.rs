@@ -95,7 +95,11 @@ impl From<ColorPalette> for Color {
 }
 
 impl ColorPalette {
-    pub fn apply_palette_mod(self, mutex_guard: Option<&MutexGuard<[u8; 0x8000]>>, screen: bool) -> ColorPalette {
+    pub fn apply_palette_mod(
+        self,
+        mutex_guard: Option<&MutexGuard<[u8; 0x8000]>>,
+        screen: bool,
+    ) -> ColorPalette {
         if screen {
             draw_state::get_screen_palette(mutex_guard, self)
         } else {

@@ -110,9 +110,12 @@ impl WasmRuntime {
                 "pset" => import_vec.push(func_wrap!(rt, api::gfx::pset)),
                 "print" => import_vec.push(func_wrap!(rt, WasmRuntime::print)),
                 "printh" => import_vec.push(func_wrap!(rt, WasmRuntime::printh)),
-                "spr" => import_vec.push(func_wrap!(rt, |idx: i32, x: i32, y: i32, w: f32, h: f32, flip_x: i32, flip_y: i32| {
-                    api::gfx::spr(None, idx, x, y, w, h, flip_x, flip_y);
-                })),
+                "spr" => import_vec.push(func_wrap!(
+                    rt,
+                    |idx: i32, x: i32, y: i32, w: f32, h: f32, flip_x: i32, flip_y: i32| {
+                        api::gfx::spr(None, idx, x, y, w, h, flip_x, flip_y);
+                    }
+                )),
 
                 "btn" => import_vec.push(func_wrap!(rt, api::input::btn)),
                 "btnp" => import_vec.push(func_wrap!(rt, api::input::btnp)),
