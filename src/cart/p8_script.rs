@@ -105,47 +105,10 @@ impl P8Script {
             }
         }
 
-        let if_return_regex = Regex::new(r"if\s*\([^)]*\)\s*return").unwrap();
-        let plus_equals_regex = Regex::new(r"(\S+)\s*\+=").unwrap();
-        let minus_equals_regex = Regex::new(r"(\S+)\s*-=").unwrap();
-        let mul_equals_regex = Regex::new(r"(\S+)\s*\*=").unwrap();
-        let div_equals_regex = Regex::new(r"(\S+)\s*/=").unwrap();
-        let mod_equals_regex = Regex::new(r"(\S+)\s*%=").unwrap();
-        let pow_equals_regex = Regex::new(r"(\S+)\s*\^=").unwrap();
         let mut script: Vec<u8> = Vec::new();
         for x in lua_start..lua_end {
             let mut line = lines[x as usize].to_owned();
             let mut line_clone = line.clone();
-
-            for x in plus_equals_regex.captures_iter(&line_clone) {
-                line = line.replace("+=", format!("= {} +", &x[1]).as_str());
-            }
-
-            for x in minus_equals_regex.captures_iter(&line_clone) {
-                line = line.replace("-=", format!("= {} -", &x[1]).as_str());
-            }
-
-            for x in mul_equals_regex.captures_iter(&line_clone) {
-                line = line.replace("*=", format!("= {} *", &x[1]).as_str());
-            }
-
-            for x in div_equals_regex.captures_iter(&line_clone) {
-                line = line.replace("/=", format!("= {} /", &x[1]).as_str());
-            }
-
-            for x in mod_equals_regex.captures_iter(&line_clone) {
-                line = line.replace("%=", format!("= {} %", &x[1]).as_str());
-            }
-
-            for x in pow_equals_regex.captures_iter(&line_clone) {
-                line = line.replace("^=", format!("= {} ^", &x[1]).as_str());
-            }
-
-            if if_return_regex.is_match(&line_clone) {
-                line = line.replace("return", "then\nreturn\nend");
-            }
-
-            line = line.replace("!=", "~=");
 
             for ch in line.as_bytes() {
                 script.push(*ch);

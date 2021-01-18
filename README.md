@@ -1,7 +1,17 @@
 # WARS-8
 
-Virtual Console written in Rust that aims to eventually implement the PICO-8 API. It executes only WASM binaries at the moment, so you can compile from most languages for it.
+Virtual Console written in Rust that implements the PICO-8 API (or is trying to). Game support is limited at the moment.
 
-API, Template and example apps (in rust) can be found [here](https://github.com/EliseZeroTwo/WARS-8-API)
+It can run both Lua scripts and WASM binaries, the Lua version is my fork of Lua 5.4 with PicoLua support
 
-Docs can be found [here](https://github.com/EliseZeroTwo/WARS-8/blob/main/docs/src/SUMMARY.md)
+## Current Supported Formats
+* .wasm (WASM binary)
+* .lua (Lua Script)
+* .p8 (PICO-8 cartridge)
+
+## Rust API, Template and Examples
+ Can be found [here](https://github.com/EliseZeroTwo/WARS-8-API)
+
+## Docs
+
+Docs can be found [here](https://github.com/EliseZeroTwo/WARS-8/blob/main/docs/src/SUMMARY.md) but may not reflect latest changes as this is in heavy development.

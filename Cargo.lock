@@ -629,13 +629,12 @@ dependencies = [
 [[package]]
 name = "mlua"
 version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a12dc3300f9cb6d319059a5e94f9fcde2ee8dd803f225b92bed17b0c6fb15154"
 dependencies = [
  "bstr",
  "cc",
  "lazy_static",
  "num-traits",
+ "picolua-src",
  "pkg-config",
 ]
 
@@ -686,6 +685,13 @@ name = "opaque-debug"
 version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2839e79665f131bdb5782e51f2c6c9599c133c6098982a54c794358bf432529c"
+
+[[package]]
+name = "picolua-src"
+version = "542.0.0"
+dependencies = [
+ "cc",
+]
 
 [[package]]
 name = "pkg-config"
