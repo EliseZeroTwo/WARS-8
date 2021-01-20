@@ -105,7 +105,7 @@ pub fn shr(x: i32, y: i32) -> i32 {
 }
 
 pub fn sin(x: f32) -> f32 {
-    ((std::f32::consts::PI * 2.0) / x).asin()
+    (((std::f32::consts::PI * 2.0) * -x).sin()).max(-1.0).min(1.0)
 }
 
 pub fn sqrt(x: i32) -> f32 {

@@ -1,4 +1,4 @@
-use crate::{cart::Cart, config::Config, CART, CART_TO_LOAD};
+use crate::{cart::Cart, config::Config, CART, CART_TO_LOAD, TIME};
 
 pub fn exit() {
     std::process::exit(0); // lol
@@ -29,4 +29,8 @@ pub fn load(str: String) {
     *CART.lock().unwrap() = Some(Cart::load(&path));
     *CART_TO_LOAD.lock().unwrap() = true;
     println!("Loaded {}", path);
+}
+
+pub fn time() -> f32 {
+    *(TIME.lock().unwrap())
 }

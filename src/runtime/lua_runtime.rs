@@ -183,8 +183,8 @@ impl LuaRuntime {
         lua.globals()
             .set(
                 "pset",
-                lua.create_function(|_, args: (i32, i32, i32)| {
-                    api::gfx::pset(args.0, args.1, args.2);
+                lua.create_function(|_, args: (f32, f32, f32)| {
+                    api::gfx::pset(args.0 as i32, args.1 as i32, args.2 as i32);
                     Ok(())
                 })
                 .unwrap(),
@@ -227,6 +227,7 @@ impl LuaRuntime {
                         Option<bool>,
                         Option<bool>,
                     )| {
+
                         let flip_x = match flip_x.unwrap_or(false) {
                             false => 0,
                             true => 1,
@@ -607,7 +608,27 @@ impl LuaRuntime {
                 .unwrap(),
             )
             .unwrap();
+        
+        lua.globals()
+            .set(
+                "time",
+                lua.create_function(|_, _: ()| {
+                    Ok(api::misc::time())
+                })
+                .unwrap(),
+            )
+            .unwrap();
 
+        
+        lua.globals()
+            .set(
+                "t",
+                lua.create_function(|_, _: ()| {
+                    Ok(api::misc::time())
+                })
+                .unwrap(),
+            )
+            .unwrap();
         // Lua specific string api
 
         lua.globals()
@@ -740,7 +761,7 @@ impl Runtime for LuaRuntime {
     fn init(&mut self) {
         match self.lua.globals().get::<&str, Function>("_init") {
             Ok(func) => func,
-            Err(_) => panic!("Missing _init function"),
+            Err(_) => return,
         }
         .call::<_, ()>(())
         .unwrap();
@@ -749,7 +770,7 @@ impl Runtime for LuaRuntime {
     fn update(&mut self) {
         match self.lua.globals().get::<&str, Function>("_update") {
             Ok(func) => func,
-            Err(_) => panic!("Missing _update function"),
+            Err(_) => return,
         }
         .call::<_, ()>(())
         .unwrap();
@@ -758,7 +779,7 @@ impl Runtime for LuaRuntime {
     fn draw(&mut self) {
         match self.lua.globals().get::<&str, Function>("_draw") {
             Ok(func) => func,
-            Err(_) => panic!("Missing _draw function"),
+            Err(_) => return,
         }
         .call::<_, ()>(())
         .unwrap();

@@ -27,7 +27,7 @@ use crate::palette::ColorPalette;
 use crate::runtime::*;
 use crate::utils::*;
 use rand_pcg::Pcg64Mcg;
-use sdl2::keyboard::Scancode;
+use sdl2::{TimerSubsystem, keyboard::Scancode};
 use sdl2::pixels::Color;
 use sdl2::pixels::PixelFormatEnum;
 use sdl2::{
@@ -69,14 +69,15 @@ impl TerminalLocation {
 }
 
 lazy_static! {
+    static ref CONFIG: Mutex<Config> = Mutex::new(Config::get_config_or_create());
+    static ref CART: Mutex<Option<Box<dyn Cart>>> = Mutex::new(None);
+    static ref CART_TO_LOAD: Mutex<bool> = Mutex::new(false);
     static ref KEYSTATE_FRAME: Mutex<HashSet<Scancode>> = Mutex::new(HashSet::new());
     static ref KEYSTATE_FRAME_FIFO: Mutex<Vec<Scancode>> = Mutex::new(Vec::new());
     static ref KEYSTATE_HELD: Mutex<HashSet<Scancode>> = Mutex::new(HashSet::new());
-    static ref CONFIG: Mutex<Config> = Mutex::new(Config::get_config_or_create());
-    static ref RAND_SRC: Mutex<Pcg64Mcg> = Mutex::new(Pcg64Mcg::new(0xcafef00dbeefd34d));
-    static ref CART: Mutex<Option<Box<dyn Cart>>> = Mutex::new(None);
-    static ref CART_TO_LOAD: Mutex<bool> = Mutex::new(false);
     static ref MEM: Mutex<[u8; 0x8000]> = Mutex::new([0; 0x8000]);
+    static ref RAND_SRC: Mutex<Pcg64Mcg> = Mutex::new(Pcg64Mcg::new(0xcafef00dbeefd34d));
+    static ref TIME: Mutex<f32> = Mutex::new(0.0);
 }
 
 pub fn set_pixel(
@@ -322,8 +323,10 @@ fn main() {
     draw_state::reset(None);
     runtime.init();
 
-    let mut target_ms = sdl_ctx.timer().unwrap().ticks() + FRAME_LEN_MS;
-    let mut fps_counter = FpsCounter::new(sdl_ctx.timer().unwrap().ticks());
+    let mut cart_start_offset: f32 = 0.0;
+    let mut sdl_timer = sdl_ctx.timer().unwrap();
+    let mut target_ms = sdl_timer.ticks() + FRAME_LEN_MS;
+    let mut fps_counter = FpsCounter::new(sdl_timer.ticks());
     let mut paused = false;
     'sdlloop: loop {
         let mut cart_mutex = CART.lock().unwrap();
@@ -339,6 +342,10 @@ fn main() {
                 println!("Resetting to boot cartridge");
                 *cart_mutex = Some(Cart::load(&boot_cart_path));
             }
+
+            cart_start_offset = sdl_timer.ticks() as f32 / 1000.0;
+            let mut time = TIME.lock().unwrap();
+            *time = (sdl_timer.ticks() as f32 / 1000.0) - cart_start_offset;
 
             runtime = cart_mutex.as_deref().unwrap().create_runtime();
             runtime.init();
@@ -435,12 +442,15 @@ fn main() {
         canvas.copy(&texture, None, Some(out_win_rect)).unwrap();
         canvas.present();
 
-        let frame_difference = target_ms as i32 - sdl_ctx.timer().unwrap().ticks() as i32;
+        let frame_difference = target_ms as i32 - sdl_timer.ticks() as i32;
         target_ms += FRAME_LEN_MS;
         if frame_difference > 0 {
-            sdl_ctx.timer().unwrap().delay(frame_difference as u32);
+            sdl_timer.delay(frame_difference as u32);
         }
-        fps_counter.tick(sdl_ctx.timer().unwrap().ticks());
+        fps_counter.tick(sdl_timer.ticks());
+
+        let mut time = TIME.lock().unwrap();
+        *time = (sdl_timer.ticks() as f32 / 1000.0) - cart_start_offset;
     }
 
     std::fs::write("./lastmem.bin", *MEM.lock().unwrap()).unwrap();
