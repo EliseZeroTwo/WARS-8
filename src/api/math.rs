@@ -2,8 +2,8 @@ use crate::RAND_SRC;
 use rand::Rng;
 use rand_pcg::Pcg64Mcg;
 
-pub fn abs(x: f32) -> i32 {
-    x.trunc() as i32
+pub fn abs(x: f32) -> f32 {
+    x.abs()
 }
 
 pub fn atan2(dx: f32, dy: f32) -> f32 {
@@ -27,7 +27,7 @@ pub fn bxor(x: i32, y: i32) -> i32 {
 }
 
 pub fn cos(x: f32) -> f32 {
-    ((std::f32::consts::PI * 2.0) / x).cos()
+    ((std::f32::consts::PI * 2.0) / x).cos().max(-1.0).min(1.0)
 }
 
 pub fn flr(x: f32) -> f32 {
